@@ -154,9 +154,6 @@ class DisplayThread(threading.Thread):
                 settings = self.get_settings()
                 theme = self.get_theme()
 
-                # apply brightness if changed
-                self._apply_brightness(settings.get("display", {}).get("brightness", 100))
-
                 # idle time since last input
                 idle = time.time() - self.controller.last_input_ts
 
@@ -175,6 +172,9 @@ class DisplayThread(threading.Thread):
                     self._render_screensaver()
                     time.sleep(0.05)
                     continue
+
+                # apply brightness if changed (only when active)
+                self._apply_brightness(settings.get("display", {}).get("brightness", 100))
 
                 # normal render throttled
                 now = time.time()
