@@ -21,7 +21,8 @@ APP_MAIN="$APP_DIR/main.py"
 
 ENABLE_SPI=0
 RUN_APP=0
-for arg in "${@:-}"; do
+[[ $# -eq 0 ]] && echo "No options provided"
+for arg in "$@"; do
   case "$arg" in
     --enable-spi) ENABLE_SPI=1 ;;
     --run) RUN_APP=1 ;;
