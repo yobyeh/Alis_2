@@ -15,6 +15,7 @@ from app.interface import DisplayThread, ButtonsThread
 from app.menu_engine import MenuController
 from app.status import StatusProvider
 from app.storage import load_json, save_json_atomic
+from app.led_controller import LEDThread
 
 # Paths are relative to the project root (where you run Alis_Script.sh)
 MENU_PATH     = "menu.json"
@@ -104,10 +105,12 @@ def main():
         rotation=rotation,              # <-- applied once at startup
     )
     btn_thread  = ButtonsThread(stop_evt=stop_evt, controller=controller)
+    led_thread  = LEDThread(stop_evt=stop_evt, get_settings=get_settings)
 
     try:
         disp_thread.start()
         btn_thread.start()
+        led_thread.start()
         # Main thread can host future supervisors/services
         while True:
             time.sleep(1.0)
@@ -118,6 +121,7 @@ def main():
         # Give threads a moment to exit cleanly
         btn_thread.join(timeout=2.0)
         disp_thread.join(timeout=3.0)
+        led_thread.join(timeout=2.0)
         # Ensure final settings are flushed
         save_json_atomic(SETTINGS_PATH, settings)
         print("[Alis] Stopped.")
