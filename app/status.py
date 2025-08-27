@@ -1,7 +1,7 @@
 # app/status.py
 import subprocess
 import time
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List, Optional
 
 class StatusProvider:
     def __init__(self, settings: Dict):
@@ -9,7 +9,7 @@ class StatusProvider:
         self._last_wifi_check = 0
         self._wifi_cached = (False, "")
 
-    def snapshot(self) -> Dict[str, str]:
+    def snapshot(self) -> Dict[str, List[Tuple[str, Optional[str]]]]:
         now = time.time()
         if now - self._last_wifi_check > 2:
             try:
@@ -20,16 +20,20 @@ class StatusProvider:
             self._last_wifi_check = now
         connected, ssid = self._wifi_cached
 
-        bar_right = []
-        if connected: bar_right.append("▂▄▆█")
-        else:         bar_right.append("x wifi")
+        bar_right: List[Tuple[str, Optional[str]]] = []
+
+        wifi_icon = "📶"
+        if connected:
+            bar_right.append((wifi_icon, None))
+        else:
+            bar_right.append((wifi_icon, "#606060"))
 
         if self.settings.get("system", {}).get("restart_required"):
-            bar_right.append("↻")
+            bar_right.append(("↻", None))
 
         return {
             "time": time.strftime("%H:%M"),
-            "wifi": "  ".join(bar_right),
+            "wifi": bar_right,
         }
 
     def _read_wifi(self) -> Tuple[bool, str]:
