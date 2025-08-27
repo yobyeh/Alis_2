@@ -117,7 +117,7 @@ class DisplayThread(threading.Thread):
             splash = Image.open(f"{self.assets_dir}/splash.png").convert("RGB")
             splash = splash.resize((self.W, self.H))
             self.disp.ShowImage(_orient(splash, self._rot))
-            time.sleep(1.2)
+            time.sleep(3)
         except Exception:
             pass  # no splash available, or load failed — ignore
 
