@@ -16,8 +16,16 @@ Alis 2 is a Python-driven menu interface for Raspberry Pi devices equipped with 
 
    ```bash
    sudo apt-get update && sudo apt-get install python3-pip
-   pip3 install -r requirements.txt
+   # Create a virtual environment (recommended)
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+
+   # Or install globally with the flag below
+   # pip3 install --break-system-packages -r requirements.txt
    ```
+
+   *Raspberry Pi OS blocks `pip` from modifying system packages managed by* `apt`*. Use a virtual environment or pass* `--break-system-packages` *to install dependencies.*
 
 ## Usage
 Run the main application to launch the menu system on the LCD:
@@ -33,9 +41,12 @@ Use the connected buttons to navigate the on‑screen menu.  Settings are stored
 ```bash
 git clone <repository-url>
 cd Alis_2
-pip3 install -r requirements.txt
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
 python3 app/main.py
 ```
+
+If you prefer installing globally, run `pip3 install --break-system-packages -r requirements.txt` instead of using a virtual environment.
 
 This boots the UI with the default menu defined in `menu.json`.
 
