@@ -55,6 +55,9 @@ DEBIAN_FRONTEND=noninteractive apt-get -y -q install \
   python3 python3-pip \
   raspi-config
 
+step "Upgrading pip…"
+python3 -m pip install --upgrade pip
+
 step "Installing Python requirements…"
 python3 -m pip --break-system-packages install -r "$PROJECT_ROOT/requirements.txt"
 
