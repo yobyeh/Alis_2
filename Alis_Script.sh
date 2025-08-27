@@ -42,8 +42,8 @@ TARGET_USER="${SUDO_USER:-$USER}"
 
 # 1) System packages (use distro packages for stability)
 step "Installing system Python packages…"
-apt update
-apt install -y \
+DEBIAN_FRONTEND=noninteractive apt-get -y -q update
+DEBIAN_FRONTEND=noninteractive apt-get -y -q install \
   python3 python3-pip \
   python3-pil python3-numpy python3-spidev python3-gpiozero python3-lgpio \
   raspi-config
