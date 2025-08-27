@@ -7,6 +7,7 @@
 # - Shows "restart required" indicator when a restart-only setting (e.g., rotation) changes
 
 import json
+import os
 import time
 import threading
 from typing import Dict, Any
@@ -93,6 +94,9 @@ def main():
     # 6) Read rotation ONCE from settings and pass into DisplayThread
     rotation = int(settings.get("display", {}).get("rotation", 0)) % 360
 
+    # Resolve assets directory relative to this file
+    assets_path = os.path.join(os.path.dirname(__file__), "assets")
+
     # 7) Spin up threads
     stop_evt = threading.Event()
     disp_thread = DisplayThread(
@@ -101,12 +105,14 @@ def main():
         status_provider=status,
         get_theme=get_theme,
         get_settings=get_settings,
-        assets_dir="assets",
+        assets_dir=assets_path,
         rotation=rotation,              # <-- applied once at startup
     )
     btn_thread  = ButtonsThread(stop_evt=stop_evt, controller=controller)
+
     # LED matrix data line is wired to GPIO13 (physical pin 33 / PWM1)
     led_thread  = LEDThread(stop_evt=stop_evt, get_settings=get_settings, pin=13)
+
 
     try:
         disp_thread.start()

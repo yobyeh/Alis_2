@@ -26,6 +26,7 @@ class LEDThread(threading.Thread):
     library supports it.
     """
 
+
     def __init__(
         self,
         stop_evt: threading.Event,
@@ -45,6 +46,7 @@ class LEDThread(threading.Thread):
                 otherwise 0).
         """
 
+
         super().__init__(daemon=True)
         self.stop_evt = stop_evt
         self.get_settings = get_settings
@@ -52,16 +54,20 @@ class LEDThread(threading.Thread):
         self.pin = pin
         self.strip = None
 
+
+
         if PixelStrip:
             try:
                 brightness = int(get_settings().get("led", {}).get("brightness", 64))
             except Exception:
                 brightness = 64
 
+
             if channel is None:
                 channel = 1 if pin in (13, 19, 41, 45, 53) else 0
 
             self.strip = PixelStrip(count, pin, brightness=brightness, channel=channel)
+
             self.strip.begin()
 
     def _set_all(self, color):
