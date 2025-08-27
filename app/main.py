@@ -110,8 +110,8 @@ def main():
     )
     btn_thread  = ButtonsThread(stop_evt=stop_evt, controller=controller)
 
-    # LED matrix data line is wired to GPIO13 (physical pin 33 / PWM1)
-    led_thread  = LEDThread(stop_evt=stop_evt, get_settings=get_settings, pin=13)
+    # Start LED thread (no-op if hardware is unavailable)
+    led_thread  = LEDThread(stop_evt=stop_evt, get_settings=get_settings)
 
 
     try:
