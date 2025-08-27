@@ -22,7 +22,8 @@
 import time
 import threading
 from typing import Dict, Any, Callable
-from PIL import Image, Image as PILImage
+from PIL import Image
+import PIL.Image as PILImage
 from driver import LCD_2inch
 from gpiozero import Button
 
