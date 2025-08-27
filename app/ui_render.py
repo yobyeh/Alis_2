@@ -21,10 +21,17 @@ def render_menu(canvas, view, status, theme):
     bar_h = 20
     d.rectangle((0, 0, W, bar_h), fill="#101010")
     d.text((6, 2), status.get("time", ""), fill=fg, font=font_small)
-    right_text = status.get("wifi", "")
-    if right_text:
-        tw = d.textlength(right_text, font=font_small)
-        d.text((W - 6 - tw, 2), right_text, fill=fg, font=font_small)
+    right_info = status.get("wifi", "")
+    if isinstance(right_info, str):
+        items = [(right_info, fg)] if right_info else []
+    else:
+        items = [(txt, col or fg) for txt, col in right_info]
+    x = W - 6
+    for txt, col in reversed(items):
+        tw = d.textlength(txt, font=font_small)
+        x -= tw
+        d.text((x, 2), txt, fill=col, font=font_small)
+        x -= 6
     d.line((0, bar_h, W, bar_h), fill="#404040")
 
     font_title = load_font(20)
