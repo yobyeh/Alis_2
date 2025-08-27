@@ -48,13 +48,15 @@ step() { echo -e "\n[$(date +%H:%M:%S)] $*"; }
 require_root
 TARGET_USER="${SUDO_USER:-$USER}"
 
-# 1) System packages (use distro packages for stability)
+# 1) System packages + Python dependencies
 step "Installing system Python packages…"
 DEBIAN_FRONTEND=noninteractive apt-get -y -q update
 DEBIAN_FRONTEND=noninteractive apt-get -y -q install \
   python3 python3-pip \
-  python3-pil python3-numpy python3-spidev python3-gpiozero python3-lgpio \
   raspi-config
+
+step "Installing Python requirements…"
+pip3 install -r "$PROJECT_ROOT/requirements.txt"
 
 # 2) Optionally enable SPI (Bookworm uses /boot/firmware/config.txt)
 if [[ $ENABLE_SPI -eq 1 ]]; then
