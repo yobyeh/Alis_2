@@ -6,7 +6,6 @@ numpy>=1.26
 
 # Raspberry Pi hardware access
 spidev>=3.6
-RPi.GPIO>=0.7.1
-gpiozero>=2.0
+gpiozero>=2.0  # uses lgpio backend; RPi.GPIO not required
 lgpio
 rpi-ws281x
