@@ -42,7 +42,15 @@ def render_menu(canvas, view, status, theme):
     row_y = bar_h + 34
     row_h = 26
     padding = 8
-    for item in view.get("items", []):
+
+    # Determine how many rows fit on the screen and which slice of items to draw
+    items = view.get("items", [])
+    max_rows = max(1, (H - row_y) // row_h)
+    focus_idx = next((i for i, it in enumerate(items) if it.get("focused")), 0)
+    top_idx = max(0, min(focus_idx - max_rows + 1, len(items) - max_rows))
+    visible = items[top_idx : top_idx + max_rows]
+
+    for item in visible:
         label = item.get("label","")
         value = item.get("value","")
         focused = item.get("focused", False)
