@@ -58,8 +58,14 @@ DEBIAN_FRONTEND=noninteractive apt-get -y -q install \
 step "Upgrading pip…"
 python3 -m pip install --upgrade pip
 
-step "Installing Python requirements…"
-python3 -m pip --break-system-packages install -r "$PROJECT_ROOT/requirements.txt"
+step "Installing Python packages…"
+python3 -m pip --break-system-packages install \
+  'Pillow>=10.0' \
+  'numpy>=1.26' \
+  'spidev>=3.6' \
+  'gpiozero>=2.0' \
+  lgpio \
+  rpi-ws281x
 
 # 2) Optionally enable SPI (Bookworm uses /boot/firmware/config.txt)
 if [[ $ENABLE_SPI -eq 1 ]]; then

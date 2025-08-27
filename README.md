@@ -12,21 +12,14 @@ Alis 2 is a Python-driven menu interface for Raspberry Pi devices equipped with 
 ## Setup
 1. Enable SPI on the Raspberry Pi (`sudo raspi-config`).
 2. Clone this repository and move into the project directory.
-3. Install Python requirements:
+3. Run the setup script, which installs all required Python packages and can optionally enable SPI or launch the app:
 
    ```bash
-   sudo apt-get update && sudo apt-get install python3-pip
-   # Create a virtual environment (recommended)
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-
-   # Or install globally with the flag below
-   # pip3 install --break-system-packages -r requirements.txt
+   chmod +x Alis_Script.sh
+   sudo ./Alis_Script.sh [--enable-spi] [--run]
    ```
 
-
-These packages configure `gpiozero` to use the `lgpio` backend, so `RPi.GPIO` is not required.
+   Use `--enable-spi` to enable SPI and `--run` to launch the application after installation. The script installs packages that configure `gpiozero` to use the `lgpio` backend, so `RPi.GPIO` is not required.
 
 
 ## Usage
@@ -43,12 +36,9 @@ Use the connected buttons to navigate the on‑screen menu.  Settings are stored
 ```bash
 git clone <repository-url>
 cd Alis_2
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python3 app/main.py
+chmod +x Alis_Script.sh
+sudo ./Alis_Script.sh --run
 ```
-
-If you prefer installing globally, run `pip3 install --break-system-packages -r requirements.txt` instead of using a virtual environment.
 
 This boots the UI with the default menu defined in `menu.json`.
 
