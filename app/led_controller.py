@@ -26,19 +26,48 @@ class LEDThread(threading.Thread):
     library supports it.
     """
 
-    def __init__(self, stop_evt: threading.Event, get_settings, count: int = 16 * 16, pin: int = 18):
+
+    def __init__(
+        self,
+        stop_evt: threading.Event,
+        get_settings,
+        count: int = 16 * 16,
+        pin: int = 13,
+        channel: int | None = None,
+    ):
+        """
+        Args:
+            stop_evt: Event used to signal shutdown.
+            get_settings: Callable returning the settings dict.
+            count: Number of pixels in the matrix.
+            pin: GPIO pin used for the data line (BCM numbering).
+            channel: PWM channel for ``rpi_ws281x``. If ``None`` an appropriate
+                channel is chosen based on the pin (pins 13/19/41/45/53 -> 1
+                otherwise 0).
+        """
+
+
         super().__init__(daemon=True)
         self.stop_evt = stop_evt
         self.get_settings = get_settings
         self.count = count
         self.pin = pin
         self.strip = None
+
+
+
         if PixelStrip:
             try:
                 brightness = int(get_settings().get("led", {}).get("brightness", 64))
             except Exception:
                 brightness = 64
-            self.strip = PixelStrip(count, pin, brightness=brightness)
+
+
+            if channel is None:
+                channel = 1 if pin in (13, 19, 41, 45, 53) else 0
+
+            self.strip = PixelStrip(count, pin, brightness=brightness, channel=channel)
+
             self.strip.begin()
 
     def _set_all(self, color):

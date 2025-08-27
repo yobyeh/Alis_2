@@ -109,7 +109,10 @@ def main():
         rotation=rotation,              # <-- applied once at startup
     )
     btn_thread  = ButtonsThread(stop_evt=stop_evt, controller=controller)
-    led_thread  = LEDThread(stop_evt=stop_evt, get_settings=get_settings)
+
+    # LED matrix data line is wired to GPIO13 (physical pin 33 / PWM1)
+    led_thread  = LEDThread(stop_evt=stop_evt, get_settings=get_settings, pin=13)
+
 
     try:
         disp_thread.start()
