@@ -1,0 +1,64 @@
+# app/ui_render.py
+from typing import Dict, Any
+from PIL import Image, ImageDraw, ImageFont
+
+def load_font(size=20):
+    try:
+        return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size)
+    except Exception:
+        return ImageFont.load_default()
+
+def render_menu(canvas, view, status, theme):
+    W, H = canvas.size
+    d = ImageDraw.Draw(canvas)
+    fg = theme.get("fg", "white")
+    bg = theme.get("bg", "black")
+    accent = theme.get("accent", "cyan")
+
+    d.rectangle((0, 0, W, H), fill=bg)
+
+    font_small = load_font(14)
+    bar_h = 20
+    d.rectangle((0, 0, W, bar_h), fill="#101010")
+    d.text((6, 2), status.get("time", ""), fill=fg, font=font_small)
+    right_text = status.get("wifi", "")
+    if right_text:
+        tw = d.textlength(right_text, font=font_small)
+        d.text((W - 6 - tw, 2), right_text, fill=fg, font=font_small)
+    d.line((0, bar_h, W, bar_h), fill="#404040")
+
+    font_title = load_font(20)
+    d.text((8, bar_h + 6), view.get("title",""), fill=accent, font=font_title)
+
+    font_row = load_font(18)
+    font_row_stub = load_font(18)  # same face; use a dimmer color
+    row_y = bar_h + 34
+    row_h = 26
+    padding = 8
+    for item in view.get("items", []):
+        label = item.get("label","")
+        value = item.get("value","")
+        focused = item.get("focused", False)
+        live = item.get("live", True)
+        needs_restart = item.get("restart", False)
+
+        if not live:
+            label_disp = f"{label} (stub)"
+            color = "#808080"
+        else:
+            label_disp = label
+            color = fg
+
+        if needs_restart:
+            # append a small indicator to the value or label
+            value = (value + "  ↻") if value else "↻"
+
+        if focused:
+            d.rectangle((4, row_y - 2, W - 4, row_y + row_h - 2), outline=accent, width=2)
+
+        d.text((padding + 6, row_y), label_disp, fill=color, font=font_row)
+        if value:
+            tw = d.textlength(value, font=font_row)
+            d.text((W - padding - 6 - tw, row_y), value, fill=color, font=font_row)
+        row_y += row_h
+
