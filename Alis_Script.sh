@@ -10,9 +10,10 @@ set -euo pipefail
 #
 # Usage:
 #   chmod +x Alis_Script.sh
-#   sudo ./Alis_Script.sh [--enable-spi] [--run]
-#     --enable-spi    also enable SPI
-#     --run           then run Alis
+#   sudo ./Alis_Script.sh [--enable-spi] [--run] [--skip-pip-upgrade]
+#     --enable-spi        also enable SPI
+#     --run               then run Alis
+#     --skip-pip-upgrade  do not attempt to upgrade pip
 #   (unknown args exit with status 1)
 
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -24,14 +25,16 @@ APP_MAIN="$APP_DIR/main.py"
 
 ENABLE_SPI=0
 RUN_APP=0
+SKIP_PIP_UPGRADE=0
 [[ $# -eq 0 ]] && echo "No options provided"
 for arg in "$@"; do
   case "$arg" in
     --enable-spi) ENABLE_SPI=1 ;;
     --run) RUN_APP=1 ;;
+    --skip-pip-upgrade) SKIP_PIP_UPGRADE=1 ;;
     *)
       echo "Unknown arg: $arg"
-      echo "Usage: sudo $0 [--enable-spi] [--run]"
+      echo "Usage: sudo $0 [--enable-spi] [--run] [--skip-pip-upgrade]"
       exit 1
       ;;
   esac
@@ -39,7 +42,7 @@ done
 
 require_root() {
   if [[ $EUID -ne 0 ]]; then
-    echo "Please run with sudo: sudo $0 [--enable-spi] [--run]"
+    echo "Please run with sudo: sudo $0 [--enable-spi] [--run] [--skip-pip-upgrade]"
     exit 1
   fi
 }
@@ -55,8 +58,12 @@ DEBIAN_FRONTEND=noninteractive apt-get -y -q install \
   python3 python3-pip \
   raspi-config
 
-step "Upgrading pip…"
-python3 -m pip install --upgrade pip
+if [[ $SKIP_PIP_UPGRADE -eq 0 ]]; then
+  step "Upgrading pip…"
+  python3 -m pip install --upgrade pip || echo "pip upgrade failed, continuing"
+else
+  step "Skipping pip upgrade"
+fi
 
 step "Installing Python packages…"
 python3 -m pip --break-system-packages install \

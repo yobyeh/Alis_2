@@ -14,12 +14,12 @@ Alis 2 is a Python-driven menu interface for Raspberry Pi devices equipped with 
 2. Clone this repository and move into the project directory.
 3. Run the setup script, which installs all required Python packages and can optionally enable SPI or launch the app:
 
-   ```bash
-   chmod +x Alis_Script.sh
-   sudo ./Alis_Script.sh [--enable-spi] [--run]
-   ```
+    ```bash
+    chmod +x Alis_Script.sh
+    sudo ./Alis_Script.sh [--enable-spi] [--run] [--skip-pip-upgrade]
+    ```
 
-   Use `--enable-spi` to enable SPI and `--run` to launch the application after installation. The script installs packages that configure `gpiozero` to use the `lgpio` backend, so `RPi.GPIO` is not required.
+    Use `--enable-spi` to enable SPI, `--run` to launch the application after installation, and `--skip-pip-upgrade` to bypass the pip upgrade step. The script attempts to upgrade `pip` but will continue even if the upgrade fails. It installs packages that configure `gpiozero` to use the `lgpio` backend, so `RPi.GPIO` is not required.
 
 
 ## Usage
