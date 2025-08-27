@@ -56,7 +56,7 @@ DEBIAN_FRONTEND=noninteractive apt-get -y -q install \
   raspi-config
 
 step "Installing Python requirements…"
-pip3 install -r "$PROJECT_ROOT/requirements.txt"
+python3 -m pip --break-system-packages install -r "$PROJECT_ROOT/requirements.txt"
 
 # 2) Optionally enable SPI (Bookworm uses /boot/firmware/config.txt)
 if [[ $ENABLE_SPI -eq 1 ]]; then
