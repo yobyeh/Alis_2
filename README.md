@@ -12,11 +12,11 @@ Alis 2 is a Python-driven menu interface for Raspberry Pi devices equipped with 
 ## Setup
 1. Enable SPI on the Raspberry Pi (`sudo raspi-config`).
 2. Clone this repository and move into the project directory.
-3. Install Python requirements and the gpiozero library:
+3. Install Python requirements:
 
    ```bash
-   sudo apt-get update && sudo apt-get install python3-pip python3-gpiozero
-   pip3 install pillow
+   sudo apt-get update && sudo apt-get install python3-pip
+   pip3 install -r requirements.txt
    ```
 
 ## Usage
@@ -33,6 +33,7 @@ Use the connected buttons to navigate the on‑screen menu.  Settings are stored
 ```bash
 git clone <repository-url>
 cd Alis_2
+pip3 install -r requirements.txt
 python3 app/main.py
 ```
 
