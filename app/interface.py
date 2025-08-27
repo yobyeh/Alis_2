@@ -21,6 +21,7 @@
 
 import time
 import threading
+import logging
 from typing import Dict, Any, Callable
 from PIL import Image, Image as PILImage
 from driver import LCD_2inch
@@ -91,7 +92,12 @@ class DisplayThread(threading.Thread):
     # -------- helpers --------
     def _apply_brightness(self, val: int):
         """Map 0..100 to driver backlight if available; fallback on/off."""
-        val = max(0, min(100, int(val)))
+        try:
+            val = int(val)
+        except (ValueError, TypeError):
+            logging.warning("Invalid brightness value %r; defaulting to 100", val)
+            val = 100
+        val = max(0, min(100, val))
         try:
             # Many Waveshare drivers accept 0..100 for duty
             self.disp.bl_DutyCycle(val)
