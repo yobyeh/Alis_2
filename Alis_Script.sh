@@ -10,9 +10,10 @@ set -euo pipefail
 #
 # Usage:
 #   chmod +x Alis_Script.sh
-#   sudo ./Alis_Script.sh                 # install & verify
-#   sudo ./Alis_Script.sh --enable-spi    # also enable SPI
-#   sudo ./Alis_Script.sh --run           # then run Alis
+#   sudo ./Alis_Script.sh [--enable-spi] [--run]
+#     --enable-spi    also enable SPI
+#     --run           then run Alis
+#   (unknown args exit with status 1)
 
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$PROJECT_ROOT/app"
@@ -25,7 +26,11 @@ for arg in "${@:-}"; do
   case "$arg" in
     --enable-spi) ENABLE_SPI=1 ;;
     --run) RUN_APP=1 ;;
-    *) echo "Unknown arg: $arg" ;;
+    *)
+      echo "Unknown arg: $arg"
+      echo "Usage: sudo $0 [--enable-spi] [--run]"
+      exit 1
+      ;;
   esac
 done
 
