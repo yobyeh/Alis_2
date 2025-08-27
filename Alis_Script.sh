@@ -15,6 +15,8 @@ set -euo pipefail
 #   sudo ./Alis_Script.sh --run           # then run Alis
 
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$PROJECT_ROOT"
+export PROJECT_ROOT
 APP_DIR="$PROJECT_ROOT/app"
 DRIVER_DIR="$PROJECT_ROOT/driver"
 APP_MAIN="$APP_DIR/main.py"
@@ -81,7 +83,7 @@ fi
 # 4) Verify core imports using system Python (uses LOCAL driver, no downloads)
 step "Verifying Python modules and local driver (system Python)…"
 python3 - <<'PY'
-import sys, importlib, pathlib
+import sys, importlib, pathlib, os
 def ok(x): print(x, "OK")
 def fail(tag, e): 
     print(tag, "FAILED:", e); sys.exit(1)
@@ -97,8 +99,8 @@ try:
 except Exception as e:
     fail("lgpio", e)
 
-# Ensure local driver import works from project root
-root = pathlib.Path(__file__).resolve().parent
+# Ensure local driver import works from PROJECT_ROOT
+root = pathlib.Path(os.environ["PROJECT_ROOT"])
 if str(root) not in sys.path:
     sys.path.insert(0, str(root))
 try:
