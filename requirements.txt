@@ -1,0 +1,13 @@
+# Image drawing and display
+Pillow>=10.0        # provides PIL
+
+# Math and array handling
+numpy>=1.26
+
+# Raspberry Pi hardware access
+spidev>=3.6
+RPi.GPIO>=0.7.1
+
+gpiozero>=2.0
+
+rpi-ws281x
