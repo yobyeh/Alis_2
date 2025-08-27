@@ -7,7 +7,7 @@ Alis 2 is a Python-driven menu interface for Raspberry Pi devices equipped with 
 - Raspberry Pi with SPI enabled
 - Waveshare 2" SPI LCD (tested with the Waveshare 2 inch module)
 - Momentary buttons wired to GPIO pins
-- Python library [`gpiozero`](https://gpiozero.readthedocs.io/) for handling button input
+- Python library [`gpiozero`](https://gpiozero.readthedocs.io/) using the [`lgpio`](https://pypi.org/project/lgpio/) backend for handling button input (no `RPi.GPIO` required)
 
 ## Setup
 1. Enable SPI on the Raspberry Pi (`sudo raspi-config`).
@@ -18,6 +18,8 @@ Alis 2 is a Python-driven menu interface for Raspberry Pi devices equipped with 
    sudo apt-get update && sudo apt-get install python3-pip
    pip3 install -r requirements.txt
    ```
+
+These packages configure `gpiozero` to use the `lgpio` backend, so `RPi.GPIO` is not required.
 
 ## Usage
 Run the main application to launch the menu system on the LCD:
