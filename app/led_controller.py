@@ -1,101 +1,95 @@
-"""app/led_controller.py
-
-Threaded controller for a 16x16 WS2812B LED matrix.
-Cycles through red, green, and blue test pattern.
-"""
+"""Threaded controller for a WS2812B LED matrix using the pi5neo library."""
 
 import logging
 import threading
 import time
+from typing import Callable
 
-try:  # Try to import the real hardware library
-    from rpi_ws281x import PixelStrip, Color
+try:  # Try to import real hardware library
+    from pi5neo import Pi5Neo
 except Exception:  # pragma: no cover - hardware not present
-    PixelStrip = None  # type: ignore
-    def Color(r, g, b):  # type: ignore
-        return (r, g, b)
-    logging.warning("rpi_ws281x not available; LED controller will be a no-op")
+    Pi5Neo = None  # type: ignore
+    logging.warning("pi5neo not available; LED controller will be a no-op")
+
+
+def Color(r: int, g: int, b: int) -> tuple[int, int, int]:
+    """Return an RGB tuple used by tests."""
+    return (r, g, b)
 
 
 class LEDThread(threading.Thread):
-    """Simple LED controller thread.
+    """Progressively fills the LED strip with a solid color.
 
-    Displays a solid color over the entire 16x16 matrix and rotates
-    through red, green and blue until the stop event is set.
-    Brightness is read from settings on each cycle if the hardware
-    library supports it.
+    Uses ``pi5neo`` to drive the LEDs.  When the strip cannot be initialised
+    (e.g. on non-Raspberry Pi test systems) the thread idles until ``stop_evt``
+    is set.
     """
-
 
     def __init__(
         self,
         stop_evt: threading.Event,
-        get_settings,
+        get_settings: Callable[[], dict],
         count: int = 16 * 16,
-        pin: int = 13,
-        channel: int | None = None,
-    ):
-        """
+        device: str = "/dev/spidev1.0",
+        freq_hz: int = 800,
+    ) -> None:
+        """Create the thread.
+
         Args:
             stop_evt: Event used to signal shutdown.
             get_settings: Callable returning the settings dict.
             count: Number of pixels in the matrix.
-            pin: GPIO pin used for the data line (BCM numbering).
-            channel: PWM channel for ``rpi_ws281x``. If ``None`` an appropriate
-                channel is chosen based on the pin (pins 13/19/41/45/53 -> 1
-                otherwise 0).
+            device: SPI device path used by ``pi5neo``.
+            freq_hz: SPI clock frequency.
         """
-
-
         super().__init__(daemon=True)
         self.stop_evt = stop_evt
         self.get_settings = get_settings
         self.count = count
-        self.pin = pin
         self.strip = None
 
-
-
-        if PixelStrip:
+        if Pi5Neo:
             try:
-                brightness = int(get_settings().get("led", {}).get("brightness", 64))
+                self.strip = Pi5Neo(device, count, freq_hz)
+                self.strip.clear_strip()
+                self.strip.update_strip()
             except Exception:
-                brightness = 64
+                self.strip = None
+                logging.warning("Failed to initialise Pi5Neo strip; LED controller will be idle")
 
+        # Default colour/behaviour similar to original test script
+        try:
+            brightness = int(get_settings().get("led", {}).get("brightness", 40))
+        except Exception:
+            brightness = 40
+        self.color = Color(0, brightness, 0)
+        self.step_delay = 0.02  # seconds between lighting each pixel
+        self.hold_delay = 2.0   # hold full strip on for this many seconds
 
-            if channel is None:
-                channel = 1 if pin in (13, 19, 41, 45, 53) else 0
-
-            self.strip = PixelStrip(count, pin, brightness=brightness, channel=channel)
-
-            self.strip.begin()
-
-    def _set_all(self, color):
+    def _set_all(self, color: tuple[int, int, int]) -> None:
+        """Set the entire strip to one colour and update it."""
         if not self.strip:
             return
         for i in range(self.count):
-            self.strip.setPixelColor(i, color)
-        self.strip.show()
+            self.strip.set_led_color(i, *color)
+        self.strip.update_strip()
 
-    def run(self):
+    def run(self) -> None:
         if not self.strip:
             # Hardware not available, just idle until stop
             while not self.stop_evt.is_set():
                 time.sleep(0.5)
             return
 
-        colors = [Color(255, 0, 0), Color(0, 255, 0), Color(0, 0, 255)]
-        idx = 0
-        while not self.stop_evt.is_set():
-            settings = self.get_settings()
-            try:
-                brightness = int(settings.get("led", {}).get("brightness", 64))
-                self.strip.setBrightness(brightness)
-            except Exception:
-                pass
-            self._set_all(colors[idx % 3])
-            idx += 1
-            time.sleep(0.5)
-
-        # Clear on exit
-        self._set_all(Color(0, 0, 0))
+        try:
+            for i in range(self.count):
+                if self.stop_evt.is_set():
+                    break
+                self.strip.set_led_color(i, *self.color)
+                self.strip.update_strip()
+                time.sleep(self.step_delay)
+            if not self.stop_evt.is_set():
+                time.sleep(self.hold_delay)
+        finally:
+            self.strip.clear_strip()
+            self.strip.update_strip()
