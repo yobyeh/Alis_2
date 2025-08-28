@@ -51,28 +51,34 @@ step() { echo -e "\n[$(date +%H:%M:%S)] $*"; }
 require_root
 TARGET_USER="${SUDO_USER:-$USER}"
 
-# 1) System packages + Python dependencies
+# 1) System packages + Python dependencies (APT-first; avoids PEP 668 issues)
 step "Installing system Python packages…"
 DEBIAN_FRONTEND=noninteractive apt-get -y -q update
 DEBIAN_FRONTEND=noninteractive apt-get -y -q install \
-  python3 python3-pip \
-  raspi-config
+  python3 python3-pip python3-dev build-essential \
+  raspi-config \
+  python3-pil python3-numpy python3-spidev python3-gpiozero python3-lgpio
 
-if [[ $SKIP_PIP_UPGRADE -eq 0 ]]; then
-  step "Upgrading pip…"
+# Optional: try to upgrade pip; if old pip doesn't support the flag, we skip quietly
+if [[ ${SKIP_PIP_UPGRADE:-0} -eq 0 ]]; then
+  step "Upgrading pip (best-effort)…"
   python3 -m pip install --upgrade pip || echo "pip upgrade failed, continuing"
 else
   step "Skipping pip upgrade"
 fi
 
-step "Installing Python packages…"
-python3 -m pip --break-system-packages install \
-  'Pillow>=10.0' \
-  'numpy>=1.26' \
-  'spidev>=3.6' \
-  'gpiozero>=2.0' \
-  lgpio \
-  rpi-ws281x
+# Use pip only if you need packages not in APT (example shown commented out)
+# We check whether pip supports --break-system-packages; if not, omit the flag.
+step "Installing Python packages via pip (none required; APT covered them)"
+if python3 -m pip help install 2>/dev/null | grep -q -- '--break-system-packages'; then
+  PIP_BSP="--break-system-packages"
+else
+  PIP_BSP=""
+fi
+
+# Example (uncomment if you add something not available via APT):
+# python3 -m pip install $PIP_BSP some-extra-package
+
 
 # 2) Optionally enable SPI (Bookworm uses /boot/firmware/config.txt)
 if [[ $ENABLE_SPI -eq 1 ]]; then
