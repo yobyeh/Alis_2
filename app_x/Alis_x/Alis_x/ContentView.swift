@@ -1,61 +1,66 @@
-//
-//  ContentView.swift
-//  Alis_x
-//
-//  Created by john patrick on 8/27/25.
-//
-
 import SwiftUI
-import SwiftData
+import CoreBluetooth
+
+/// View model responsible for scanning and connecting to the Pi over Bluetooth.
+final class BluetoothViewModel: NSObject, ObservableObject, CBCentralManagerDelegate {
+    @Published var status: String = "Searching for Pi..."
+
+    private var central: CBCentralManager!
+    private var targetName = "AlisPi" // expected Bluetooth name of the Pi
+
+    override init() {
+        super.init()
+        central = CBCentralManager(delegate: self, queue: nil)
+    }
+
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        switch central.state {
+        case .poweredOn:
+            status = "Scanning..."
+            central.scanForPeripherals(withServices: nil, options: nil)
+        case .unsupported:
+            status = "Bluetooth unsupported"
+        case .unauthorized:
+            status = "Bluetooth unauthorized"
+        case .poweredOff:
+            status = "Bluetooth off"
+        default:
+            status = "Bluetooth unavailable"
+        }
+    }
+
+    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
+                        advertisementData: [String : Any], rssi RSSI: NSNumber) {
+        if peripheral.name == targetName {
+            status = "Found \(targetName). Connecting..."
+            central.stopScan()
+            central.connect(peripheral, options: nil)
+        }
+    }
+
+    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        status = "Connected to \(targetName)!"
+    }
+
+    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        status = "Failed to connect"
+    }
+}
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @StateObject private var bluetoothVM = BluetoothViewModel()
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-        } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
+        VStack(spacing: 20) {
+            Text("Bluetooth Test")
+                .font(.title)
+            Text(bluetoothVM.status)
+                .multilineTextAlignment(.center)
+                .padding()
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
