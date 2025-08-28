@@ -87,12 +87,39 @@ def ensure_bluetooth_visible() -> None:
         ["bluetoothctl", "default-agent"],
     ]
 
-    for cmd in cmds:
+    def _run(cmd):
+        """Run a bluetoothctl command, retrying with sudo if needed."""
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception as exc:
-            print(f"[Bluetooth] Command {cmd} failed: {exc}")
+            subprocess.run(cmd, check=True, capture_output=True)
+            return True
+        except subprocess.CalledProcessError as exc:
+            err = (exc.stderr or b"").decode().strip()
+            try:
+                subprocess.run(["sudo", *cmd], check=True, capture_output=True)
+                return True
+            except subprocess.CalledProcessError as exc2:
+                err2 = (exc2.stderr or b"").decode().strip()
+                print(f"[Bluetooth] {' '.join(cmd)} failed: {err or err2}")
+                return False
+
+    for cmd in cmds:
+        if not _run(cmd):
             break
+
+    # Log the adapter status so users can see if commands took effect
+    try:
+        info = subprocess.run(
+            ["bluetoothctl", "show"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    except subprocess.CalledProcessError:
+        info = ""
+    if "Powered: yes" not in info or "Discoverable: yes" not in info:
+        print("[Bluetooth] Adapter is not powered or discoverable. "
+              "Try running `sudo bluetoothctl show` for details.")
+
 
 
 def main():
