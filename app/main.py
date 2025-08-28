@@ -10,6 +10,7 @@ import json
 import os
 import time
 import threading
+import subprocess
 from typing import Dict, Any
 
 from app.interface import DisplayThread, ButtonsThread
@@ -65,7 +66,64 @@ class DebouncedSaver:
             self._timer.start()
 
 
+def ensure_bluetooth_visible() -> None:
+    """Attempt to make the Pi's Bluetooth adapter visible.
+
+    Executes a few `bluetoothctl` commands to power on the adapter and
+    enable discoverability. Any failures are printed but do not abort
+    the program so that the rest of the app can continue to run even if
+    Bluetooth is unavailable.
+    """
+
+    cmds = [
+        ["bluetoothctl", "power", "on"],
+        ["bluetoothctl", "agent", "NoInputNoOutput"],
+        # Disable the default 3 minute timeout so we stay visible
+        ["bluetoothctl", "discoverable-timeout", "0"],
+        ["bluetoothctl", "pairable", "on"],
+        ["bluetoothctl", "discoverable", "on"],
+        ["bluetoothctl", "default-agent"],
+    ]
+
+    def _run(cmd):
+        """Run a bluetoothctl command, retrying with sudo if needed."""
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+            return True
+        except subprocess.CalledProcessError as exc:
+            err = (exc.stderr or b"").decode().strip()
+            try:
+                subprocess.run(["sudo", *cmd], check=True, capture_output=True)
+                return True
+            except subprocess.CalledProcessError as exc2:
+                err2 = (exc2.stderr or b"").decode().strip()
+                print(f"[Bluetooth] {' '.join(cmd)} failed: {err or err2}")
+                return False
+
+    for cmd in cmds:
+        if not _run(cmd):
+            break
+
+    # Log the adapter status so users can see if commands took effect
+    try:
+        info = subprocess.run(
+            ["bluetoothctl", "show"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    except subprocess.CalledProcessError:
+        info = ""
+    if "Powered: yes" not in info or "Discoverable: yes" not in info:
+        print("[Bluetooth] Adapter is not powered or discoverable. "
+              "Try running `sudo bluetoothctl show` for details.")
+
+
 def main():
+    # Ensure Bluetooth is powered on and discoverable so the iPhone app
+    # can locate this Pi.
+    ensure_bluetooth_visible()
+
     # 1) Load menu spec
     with open(MENU_PATH, "r") as f:
         menu_spec = json.load(f)
