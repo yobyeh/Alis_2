@@ -23,7 +23,7 @@
       "title": "Settings",
       "items": [
         { "type": "group", "label": "Display" },
-        { "type": "number", "label": "Screen Brightness", "binding": "display.brightness", "min": 0, "max": 100, "step": 5 },
+        { "type": "select", "label": "Screen Brightness", "binding": "display.brightness", "options": [25,50,75,100] },
         { "type": "select", "label": "Rotation", "binding": "display.rotation", "options": [0,90,180,270] },
         { "type": "toggle", "label": "Screensaver", "binding": "display.screensaver_enabled" },
         { "type": "number", "label": "Sleep After (s)", "binding": "display.sleep_seconds", "min": 10, "max": 3600, "step": 10 },
