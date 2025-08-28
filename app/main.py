@@ -78,10 +78,12 @@ def ensure_bluetooth_visible() -> None:
     cmds = [
         ["bluetoothctl", "power", "on"],
         ["bluetoothctl", "agent", "NoInputNoOutput"],
+
         # Disable the default 3 minute timeout so we stay visible
         ["bluetoothctl", "discoverable-timeout", "0"],
         ["bluetoothctl", "pairable", "on"],
         ["bluetoothctl", "discoverable", "on"],
+
         ["bluetoothctl", "default-agent"],
     ]
 
@@ -117,6 +119,7 @@ def ensure_bluetooth_visible() -> None:
     if "Powered: yes" not in info or "Discoverable: yes" not in info:
         print("[Bluetooth] Adapter is not powered or discoverable. "
               "Try running `sudo bluetoothctl show` for details.")
+
 
 
 def main():
