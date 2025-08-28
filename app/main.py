@@ -10,6 +10,7 @@ import json
 import os
 import time
 import threading
+import subprocess
 from typing import Dict, Any
 
 from app.interface import DisplayThread, ButtonsThread
@@ -65,7 +66,36 @@ class DebouncedSaver:
             self._timer.start()
 
 
+def ensure_bluetooth_visible() -> None:
+    """Attempt to make the Pi's Bluetooth adapter visible.
+
+    Executes a few `bluetoothctl` commands to power on the adapter and
+    enable discoverability. Any failures are printed but do not abort
+    the program so that the rest of the app can continue to run even if
+    Bluetooth is unavailable.
+    """
+
+    cmds = [
+        ["bluetoothctl", "power", "on"],
+        ["bluetoothctl", "agent", "NoInputNoOutput"],
+        ["bluetoothctl", "discoverable", "on"],
+        ["bluetoothctl", "pairable", "on"],
+        ["bluetoothctl", "default-agent"],
+    ]
+
+    for cmd in cmds:
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as exc:
+            print(f"[Bluetooth] Command {cmd} failed: {exc}")
+            break
+
+
 def main():
+    # Ensure Bluetooth is powered on and discoverable so the iPhone app
+    # can locate this Pi.
+    ensure_bluetooth_visible()
+
     # 1) Load menu spec
     with open(MENU_PATH, "r") as f:
         menu_spec = json.load(f)
