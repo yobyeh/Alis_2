@@ -78,10 +78,12 @@ def ensure_bluetooth_visible() -> None:
     cmds = [
         ["bluetoothctl", "power", "on"],
         ["bluetoothctl", "agent", "NoInputNoOutput"],
+
         # Disable the default 3 minute timeout so we stay visible
         ["bluetoothctl", "discoverable-timeout", "0"],
         ["bluetoothctl", "pairable", "on"],
         ["bluetoothctl", "discoverable", "on"],
+
         ["bluetoothctl", "default-agent"],
     ]
 
