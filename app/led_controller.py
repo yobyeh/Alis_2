@@ -1,28 +1,34 @@
-"""Threaded controller for a WS2812B LED matrix using the pi5neo library."""
+# app/led_simple.py
+# Super simple WS2812B loop using pi5neo:
+# - Lights ALL LEDs to RED, then GREEN, then BLUE
+# - Prints the color name when shown
+# - Updates the whole strip at once (no per-pixel stepping) to avoid flicker
 
 import logging
 import threading
 import time
-from typing import Callable
+from typing import Callable, Tuple
 
-try:  # Try to import real hardware library
+try:
     from pi5neo import Pi5Neo
-except Exception:  # pragma: no cover - hardware not present
-    Pi5Neo = None  # type: ignore
+except Exception:
+    Pi5Neo = None
     logging.warning("pi5neo not available; LED controller will be a no-op")
 
+Color = Tuple[int, int, int]
 
-def Color(r: int, g: int, b: int) -> tuple[int, int, int]:
-    """Return an RGB tuple used by tests."""
-    return (r, g, b)
+# If your LEDs expect GRB order instead of RGB, set ORDER = (1, 0, 2)
+ORDER = (0, 1, 2)  # (R, G, B) index order; change to (1,0,2) for GRB strips
 
+def _apply_order(c: Color) -> Color:
+    return (c[ORDER[0]], c[ORDER[1]], c[ORDER[2]])
 
 class LEDThread(threading.Thread):
-    """Progressively fills the LED strip with a solid color.
-
-    Uses ``pi5neo`` to drive the LEDs.  When the strip cannot be initialised
-    (e.g. on non-Raspberry Pi test systems) the thread idles until ``stop_evt``
-    is set.
+    """
+    Minimal LED worker:
+      - Initializes strip
+      - Loops over solid RED -> GREEN -> BLUE
+      - Holds each color for hold_sec
     """
 
     def __init__(
@@ -32,64 +38,68 @@ class LEDThread(threading.Thread):
         count: int = 16 * 16,
         device: str = "/dev/spidev1.0",
         freq_hz: int = 800,
-    ) -> None:
-        """Create the thread.
-
-        Args:
-            stop_evt: Event used to signal shutdown.
-            get_settings: Callable returning the settings dict.
-            count: Number of pixels in the matrix.
-            device: SPI device path used by ``pi5neo``.
-            freq_hz: SPI clock frequency.
-        """
+        hold_sec: float = 1.0,
+    ):
         super().__init__(daemon=True)
         self.stop_evt = stop_evt
         self.get_settings = get_settings
-        self.count = count
-        self.strip = None
+        self.count = int(count)
+        self.hold_sec = float(hold_sec)
 
+        self.strip = None
         if Pi5Neo:
             try:
-                self.strip = Pi5Neo(device, count, freq_hz)
+                self.strip = Pi5Neo(device, self.count, freq_hz)
                 self.strip.clear_strip()
                 self.strip.update_strip()
-            except Exception:
+            except Exception as e:
+                logging.warning(f"Failed to init Pi5Neo: {e}")
                 self.strip = None
-                logging.warning("Failed to initialise Pi5Neo strip; LED controller will be idle")
+        else:
+            logging.warning("Pi5Neo unavailable; LED thread will idle")
 
-        # Default colour/behaviour similar to original test script
+    def _brightness_scaled(self, base: Color) -> Color:
         try:
-            brightness = int(get_settings().get("led", {}).get("brightness", 40))
+            b = int(self.get_settings().get("led", {}).get("brightness", 20))
         except Exception:
-            brightness = 40
-        self.color = Color(0, brightness, 0)
-        self.step_delay = 0.02  # seconds between lighting each pixel
-        self.hold_delay = 2.0   # hold full strip on for this many seconds
+            b = 20
+        # Expecting 0..255 scale
+        # Scale unit colors (1,0,0) by b to (b,0,0) etc.
+        return tuple(int((v > 0) * b) for v in base)  # type: ignore[return-value]
 
-    def _set_all(self, color: tuple[int, int, int]) -> None:
-        """Set the entire strip to one colour and update it."""
+    def _set_all(self, color: Color) -> None:
         if not self.strip:
             return
+        r, g, b = _apply_order(color)
         for i in range(self.count):
-            self.strip.set_led_color(i, *color)
+            self.strip.set_led_color(i, r, g, b)
         self.strip.update_strip()
 
     def run(self) -> None:
         if not self.strip:
-            # Hardware not available, just idle until stop
+            # Hardware not present — idle until asked to stop
             while not self.stop_evt.is_set():
                 time.sleep(0.5)
             return
 
         try:
-            for i in range(self.count):
-                if self.stop_evt.is_set():
-                    break
-                self.strip.set_led_color(i, *self.color)
-                self.strip.update_strip()
-                time.sleep(self.step_delay)
-            if not self.stop_evt.is_set():
-                time.sleep(self.hold_delay)
+            # Solid color cycle
+            while not self.stop_evt.is_set():
+                for name, base in (("RED", (1, 0, 0)), ("GREEN", (0, 1, 0)), ("BLUE", (0, 0, 1))):
+                    if self.stop_evt.is_set():
+                        break
+                    color = self._brightness_scaled(base)
+                    print(f"[LED] Showing {name} (RGB={color})")
+                    self._set_all(color)
+
+                    # Sleep in small chunks so we can react to stop_evt promptly
+                    t0 = time.time()
+                    while not self.stop_evt.is_set() and (time.time() - t0) < self.hold_sec:
+                        time.sleep(0.05)
         finally:
-            self.strip.clear_strip()
-            self.strip.update_strip()
+            try:
+                if self.strip:
+                    self.strip.clear_strip()
+                    self.strip.update_strip()
+            except Exception:
+                pass

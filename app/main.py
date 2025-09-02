@@ -32,7 +32,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "screensaver_enabled": False
     },
     "led": {
-        "brightness": 64             # (stub until you wire LEDs)
+        "brightness": 20             # (stub until you wire LEDs)
     },
     "ui": {
         "anim_speed": 5              # (stub; future screensaver/animations)
