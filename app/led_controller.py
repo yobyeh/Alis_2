@@ -7,7 +7,7 @@
 import logging
 import threading
 import time
-from typing import Callable, Tuple
+from typing import Callable, NamedTuple
 
 try:
     from pi5neo import Pi5Neo
@@ -15,13 +15,17 @@ except Exception:
     Pi5Neo = None
     logging.warning("pi5neo not available; LED controller will be a no-op")
 
-Color = Tuple[int, int, int]
+class Color(NamedTuple):
+    """Simple RGB color container."""
+    r: int
+    g: int
+    b: int
 
 # If your LEDs expect GRB order instead of RGB, set ORDER = (1, 0, 2)
 ORDER = (0, 1, 2)  # (R, G, B) index order; change to (1,0,2) for GRB strips
 
 def _apply_order(c: Color) -> Color:
-    return (c[ORDER[0]], c[ORDER[1]], c[ORDER[2]])
+    return Color(c[ORDER[0]], c[ORDER[1]], c[ORDER[2]])
 
 class LEDThread(threading.Thread):
     """
@@ -65,7 +69,7 @@ class LEDThread(threading.Thread):
             b = 20
         # Expecting 0..255 scale
         # Scale unit colors (1,0,0) by b to (b,0,0) etc.
-        return tuple(int((v > 0) * b) for v in base)  # type: ignore[return-value]
+        return Color(*(int((v > 0) * b) for v in base))  # type: ignore[arg-type]
 
     def _set_all(self, color: Color) -> None:
         if not self.strip:

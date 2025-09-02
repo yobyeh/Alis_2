@@ -2,12 +2,15 @@
 import subprocess
 import time
 from typing import Dict, Tuple, List, Optional
+from app import bluetooth
 
 class StatusProvider:
     def __init__(self, settings: Dict):
         self.settings = settings
         self._last_wifi_check = 0
         self._wifi_cached = (False, "")
+        self._last_bt_check = 0
+        self._bt_cached: Dict[str, bool] = {"powered": False, "discoverable": False}
 
     def snapshot(self) -> Dict[str, List[Tuple[str, Optional[str]]]]:
         now = time.time()
@@ -20,7 +23,23 @@ class StatusProvider:
             self._last_wifi_check = now
         connected, ssid = self._wifi_cached
 
+        if now - self._last_bt_check > 2:
+            try:
+                self._bt_cached = bluetooth.get_status()
+            except Exception:
+                self._bt_cached = {"powered": False, "discoverable": False}
+            self._last_bt_check = now
+        bt_state = self._bt_cached
+
         bar_right: List[Tuple[str, Optional[str]]] = []
+
+        bt_icon = "🅱"
+        if not bt_state.get("powered"):
+            bar_right.append((bt_icon, "#606060"))
+        elif bt_state.get("discoverable"):
+            bar_right.append((bt_icon, "#00FFFF"))
+        else:
+            bar_right.append((bt_icon, None))
 
         wifi_icon = "📶"
         if connected:

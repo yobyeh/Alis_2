@@ -18,6 +18,7 @@ from app.menu_engine import MenuController
 from app.status import StatusProvider
 from app.storage import load_json, save_json_atomic
 from app.led_controller import LEDThread
+from app import bluetooth
 
 # Paths are relative to the project root (where you run Alis_Script.sh)
 MENU_PATH     = "menu.json"
@@ -45,6 +46,12 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "network": {
         "wifi_connected": False,     # (stub; status bar shows basic placeholder)
         "ssid": ""
+    },
+    "bluetooth": {
+        "power": False,
+        "discoverable": False,
+        "pairable": False,
+        "paired_count": 0,
     }
 }
 
@@ -76,6 +83,8 @@ def ensure_bluetooth_visible() -> None:
     """
 
     cmds = [
+        ["rfkill", "unblock", "bluetooth"],
+        ["hciconfig", "hci0", "up"],
         ["bluetoothctl", "power", "on"],
         ["bluetoothctl", "agent", "NoInputNoOutput"],
 
@@ -88,15 +97,26 @@ def ensure_bluetooth_visible() -> None:
     ]
 
     def _run(cmd):
-        """Run a bluetoothctl command, retrying with sudo if needed."""
+        """Run a command, retrying with sudo if needed.
+
+        Any missing binaries or failures are logged and reported as a
+        False result so the caller can stop issuing further commands
+        without raising an exception.
+        """
         try:
             subprocess.run(cmd, check=True, capture_output=True)
             return True
+        except FileNotFoundError:
+            print(f"[Bluetooth] {' '.join(cmd)} not found")
+            return False
         except subprocess.CalledProcessError as exc:
             err = (exc.stderr or b"").decode().strip()
             try:
                 subprocess.run(["sudo", *cmd], check=True, capture_output=True)
                 return True
+            except FileNotFoundError:
+                print(f"[Bluetooth] sudo {' '.join(cmd)} not found")
+                return False
             except subprocess.CalledProcessError as exc2:
                 err2 = (exc2.stderr or b"").decode().strip()
                 print(f"[Bluetooth] {' '.join(cmd)} failed: {err or err2}")
@@ -133,6 +153,14 @@ def main():
 
     # 2) Load settings (merge defaults, write file if missing/corrupt)
     settings: Dict[str, Any] = load_json(SETTINGS_PATH, DEFAULT_SETTINGS)
+
+    # Sync Bluetooth settings with actual adapter state
+    try:
+        bt_state = bluetooth.get_status()
+        bt_state["paired_count"] = len(bluetooth.list_paired_devices())
+        settings.setdefault("bluetooth", {}).update(bt_state)
+    except Exception:
+        pass
 
     # If a previous run marked restart_required, clear it now that we've restarted successfully
     if settings.get("system", {}).get("restart_required"):
