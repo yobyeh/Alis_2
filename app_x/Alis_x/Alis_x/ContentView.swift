@@ -11,9 +11,16 @@ struct ContentView: View {
             VStack {
                 Text(bluetooth.status)
                     .padding()
-                List(bluetooth.devices, id: \.identifier) { peripheral in
-                    Button(peripheral.name ?? "Unknown") {
-                        bluetooth.connect(peripheral)
+
+                if bluetooth.devices.isEmpty {
+                    Text("No devices found")
+                        .foregroundColor(.secondary)
+                } else {
+                    List(bluetooth.devices, id: \.identifier) { peripheral in
+                        Button(peripheral.name ?? "Unknown") {
+                            bluetooth.connect(peripheral)
+                        }
+
                     }
                 }
                 if bluetooth.connected != nil {
@@ -30,6 +37,11 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Bluetooth")
+
+            .onAppear {
+                bluetooth.startScan()
+            }
+
         }
     }
 }
