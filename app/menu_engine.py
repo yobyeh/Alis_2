@@ -16,6 +16,7 @@
 from __future__ import annotations
 import time
 from typing import Any, Dict, List, Callable
+from app.bluetooth import set_power, set_discoverable, set_pairable
 
 Event = str  # "UP" | "DOWN" | "SELECT" | "BACK"
 
@@ -24,6 +25,9 @@ LIVE_BINDINGS = {
     "display.brightness",
     "display.sleep_seconds",
     "display.screensaver_enabled",
+    "bluetooth.power",
+    "bluetooth.discoverable",
+    "bluetooth.pairable",
     # Wire more here as you implement them
 }
 
@@ -156,6 +160,12 @@ class MenuController:
         if binding in RESTART_BINDINGS:
             sys = self.settings.setdefault("system", {})
             sys["restart_required"] = True
+        if binding == "bluetooth.power":
+            set_power(bool(value))
+        elif binding == "bluetooth.discoverable":
+            set_discoverable(bool(value))
+        elif binding == "bluetooth.pairable":
+            set_pairable(bool(value))
         # Persist (debounced by the provided callback)
         self.save_cb(self.settings)
 
@@ -172,7 +182,11 @@ class MenuController:
             restart = b in RESTART_BINDINGS
 
         # Value string shown on the right
-        if t in ("group", "info", "action"):
+        if t in ("group", "action"):
+            value = ""
+        elif t == "info" and "binding" in it:
+            value = str(self._get_binding(it["binding"], ""))
+        elif t == "info":
             value = ""
         elif t == "toggle":
             value = "ON" if self._get_binding(it["binding"], False) else "OFF"
