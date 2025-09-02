@@ -1,109 +1,129 @@
-# app/led_simple.py
-# Super simple WS2812B loop using pi5neo:
-# - Lights ALL LEDs to RED, then GREEN, then BLUE
-# - Prints the color name when shown
-# - Updates the whole strip at once (no per-pixel stepping) to avoid flicker
+# app/led_controller.py
+# LED controller using SPI-based NeoPixel strip
 
 import logging
 import threading
 import time
-from typing import Callable, NamedTuple
+from typing import Callable, Optional, Tuple
 
 try:
-    from pi5neo import Pi5Neo
+    import board
+    import busio
+    import neopixel
 except Exception:
-    Pi5Neo = None
-    logging.warning("pi5neo not available; LED controller will be a no-op")
+    board = busio = neopixel = None  # type: ignore[assignment]
+    logging.warning("neopixel libraries not available; LED controller will be a no-op")
 
-class Color(NamedTuple):
-    """Simple RGB color container."""
-    r: int
-    g: int
-    b: int
+Color = Tuple[int, int, int]
 
-# If your LEDs expect GRB order instead of RGB, set ORDER = (1, 0, 2)
-ORDER = (0, 1, 2)  # (R, G, B) index order; change to (1,0,2) for GRB strips
-
-def _apply_order(c: Color) -> Color:
-    return Color(c[ORDER[0]], c[ORDER[1]], c[ORDER[2]])
 
 class LEDThread(threading.Thread):
-    """
-    Minimal LED worker:
-      - Initializes strip
-      - Loops over solid RED -> GREEN -> BLUE
-      - Holds each color for hold_sec
+    """Background worker driving the LED strip.
+
+    The thread idles until a pattern is selected via :meth:`set_pattern`.
+    Currently supported patterns:
+
+    ``rgb_cycle`` – cycle through red, green and blue.
+    ``off``       – turn all LEDs off.
     """
 
     def __init__(
         self,
         stop_evt: threading.Event,
         get_settings: Callable[[], dict],
-        count: int = 16 * 16,
-        device: str = "/dev/spidev1.0",
-        freq_hz: int = 800,
+        led_count: int = 256,
+        baudrate: int = 1_600_000,
+        brightness: float = 0.20,
         hold_sec: float = 1.0,
-    ):
+    ) -> None:
         super().__init__(daemon=True)
         self.stop_evt = stop_evt
         self.get_settings = get_settings
-        self.count = int(count)
-        self.hold_sec = float(hold_sec)
+        self.led_count = led_count
+        self.hold_sec = hold_sec
+        self._pattern = "off"
+        self._pattern_lock = threading.Lock()
+        self.px: Optional[neopixel.NeoPixel] = None  # type: ignore[type-arg]
 
-        self.strip = None
-        if Pi5Neo:
+        if board and busio and neopixel:
             try:
-                self.strip = Pi5Neo(device, self.count, freq_hz)
-                self.strip.clear_strip()
-                self.strip.update_strip()
-            except Exception as e:
-                logging.warning(f"Failed to init Pi5Neo: {e}")
-                self.strip = None
-        else:
-            logging.warning("Pi5Neo unavailable; LED thread will idle")
+                spi = busio.SPI(board.D21, MOSI=board.D20)
+                while not spi.try_lock():
+                    pass
+                spi.configure(baudrate=baudrate, phase=0, polarity=0)
+                spi.unlock()
+                self.px = neopixel.NeoPixel_SPI(
+                    spi,
+                    self.led_count,
+                    pixel_order=neopixel.GRB,
+                    brightness=brightness,
+                    auto_write=False,
+                )
+            except Exception as exc:  # pragma: no cover - hardware dependent
+                logging.warning(f"Failed to init neopixel SPI: {exc}")
+                self.px = None
+        else:  # pragma: no cover - hardware dependent
+            logging.warning("neopixel or board libraries unavailable; LED thread will idle")
 
-    def _brightness_scaled(self, base: Color) -> Color:
+    # ------------------- public API -------------------
+    def set_pattern(self, name: str) -> None:
+        """Select a pattern for the thread to run."""
+        with self._pattern_lock:
+            self._pattern = name
+
+    # ------------------ internal helpers ------------------
+    def _current_pattern(self) -> str:
+        with self._pattern_lock:
+            return self._pattern
+
+    def _update_brightness(self) -> None:
+        if not self.px:
+            return
         try:
             b = int(self.get_settings().get("led", {}).get("brightness", 20))
+            self.px.brightness = max(0.0, min(1.0, b / 255.0))
         except Exception:
-            b = 20
-        # Expecting 0..255 scale
-        # Scale unit colors (1,0,0) by b to (b,0,0) etc.
-        return Color(*(int((v > 0) * b) for v in base))  # type: ignore[arg-type]
+            pass
 
     def _set_all(self, color: Color) -> None:
-        if not self.strip:
+        if not self.px:
             return
-        r, g, b = _apply_order(color)
-        for i in range(self.count):
-            self.strip.set_led_color(i, r, g, b)
-        self.strip.update_strip()
+        self._update_brightness()
+        self.px.fill(color)
+        self.px.show()
 
-    def run(self) -> None:
-        if not self.strip:
+    # -------------------- thread loop --------------------
+    def run(self) -> None:  # pragma: no cover - contains time-based loop
+        if not self.px:
             # Hardware not present — idle until asked to stop
             while not self.stop_evt.is_set():
                 time.sleep(0.5)
             return
 
         try:
-            # Solid color cycle
             while not self.stop_evt.is_set():
-                for name, base in (("RED", (1, 0, 0)), ("GREEN", (0, 1, 0)), ("BLUE", (0, 0, 1))):
-                    if self.stop_evt.is_set():
-                        break
-                    color = self._brightness_scaled(base)
-                    print(f"[LED] Showing {name} (RGB={color})")
-                    self._set_all(color)
-
-                    # Sleep in small chunks so we can react to stop_evt promptly
-                    t0 = time.time()
-                    while not self.stop_evt.is_set() and (time.time() - t0) < self.hold_sec:
-                        time.sleep(0.05)
+                pattern = self._current_pattern()
+                if pattern == "rgb_cycle":
+                    for name, col in (
+                        ("RED", (25, 0, 0)),
+                        ("GREEN", (0, 25, 0)),
+                        ("BLUE", (0, 0, 25)),
+                    ):
+                        if self.stop_evt.is_set() or self._current_pattern() != "rgb_cycle":
+                            break
+                        print(f"[LED] {name}")
+                        self._set_all(col)
+                        t0 = time.time()
+                        while (
+                            not self.stop_evt.is_set()
+                            and self._current_pattern() == "rgb_cycle"
+                            and (time.time() - t0) < self.hold_sec
+                        ):
+                            time.sleep(0.05)
+                else:
+                    time.sleep(0.1)
         finally:
             try:
-                if self.strip:
-                    self.strip.clear_strip()
-                    self.strip.update_strip()
+                self._set_all((0, 0, 0))
             except Exception:
                 pass
