@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 import time
-from typing import Any, Dict, List, Callable
+from typing import Any, Dict, List, Callable, Optional
 from app.bluetooth import set_power, set_discoverable, set_pairable
 
 Event = str  # "UP" | "DOWN" | "SELECT" | "BACK"
@@ -52,10 +52,12 @@ class MenuController:
         menu_spec: Dict[str, Any],
         settings: Dict[str, Any],
         save_cb: Callable[[Dict[str, Any]], None],
+        action_cb: Optional[Callable[[str], None]] = None,
     ):
         self.spec = menu_spec
         self.settings = settings
         self.save_cb = save_cb
+        self.action_cb = action_cb
         self.stack: List[str] = [menu_spec.get("root", "home")]
         self.focus_idx: int = 0
         self.last_input_ts: float = time.time()
@@ -146,9 +148,12 @@ class MenuController:
             return
 
         if t == "action":
-            # Future: plug an action registry here.
-            # For now, just print the action name (and optionally confirm in UI).
-            print(f"[Menu] action requested: {it.get('action')}")
+            action = it.get("action")
+            if self.action_cb and action:
+                self.action_cb(action)
+            else:
+                # Fallback: log the requested action
+                print(f"[Menu] action requested: {action}")
             return
 
         # info/group/unknown: no-op on SELECT

@@ -170,15 +170,30 @@ def main():
     # 3) Create debounced saver so menu edits persist without spamming disk
     save_cb = DebouncedSaver(SETTINGS_PATH, delay=0.6)
 
+    # Helper to expose settings to other threads
+    def get_settings() -> Dict[str, Any]:
+        return settings
+
+    # Create stop event and LED thread early so menu actions can reference it
+    stop_evt = threading.Event()
+    led_thread = LEDThread(stop_evt=stop_evt, get_settings=get_settings)
+
+    # Menu action handler
+    def action_handler(name: str) -> None:
+        if name == "led.rgb_cycle":
+            led_thread.set_pattern("rgb_cycle")
+        elif name == "led.stop":
+            led_thread.set_pattern("off")
+        else:
+            print(f"[Menu] action requested: {name}")
+
     # 4) Create controller (pure logic) and status provider (for top bar)
-    controller = MenuController(menu_spec, settings, save_cb=save_cb)
+    controller = MenuController(menu_spec, settings, save_cb=save_cb, action_cb=action_handler)
     status     = StatusProvider(settings)   # pass settings so it can expose "↻" when needed
 
-    # 5) Helpers for the display thread to fetch current theme/settings
+    # 5) Helpers for the display thread to fetch current theme
     def get_theme() -> Dict[str, str]:
         return menu_spec.get("theme", {"fg": "white", "bg": "black", "accent": "cyan"})
-    def get_settings() -> Dict[str, Any]:
-        return settings  # controller mutates this in place
 
     # 6) Read rotation ONCE from settings and pass into DisplayThread
     rotation = int(settings.get("display", {}).get("rotation", 0)) % 360
@@ -187,7 +202,6 @@ def main():
     assets_path = os.path.join(os.path.dirname(__file__), "assets")
 
     # 7) Spin up threads
-    stop_evt = threading.Event()
     disp_thread = DisplayThread(
         stop_evt=stop_evt,
         controller=controller,
@@ -198,9 +212,6 @@ def main():
         rotation=rotation,              # <-- applied once at startup
     )
     btn_thread  = ButtonsThread(stop_evt=stop_evt, controller=controller)
-
-    # Start LED thread (no-op if hardware is unavailable)
-    led_thread  = LEDThread(stop_evt=stop_evt, get_settings=get_settings)
 
 
     try:

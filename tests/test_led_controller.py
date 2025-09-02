@@ -1,68 +1,45 @@
-from unittest.mock import patch
+import threading
 
-from app.led_controller import LEDThread, Color
+from app.led_controller import LEDThread
 
 
-def test_set_all_updates_strip_and_updates():
+def test_set_all_updates_pixels_and_shows():
     thread = LEDThread.__new__(LEDThread)
-    thread.count = 3
 
-    class DummyStrip:
+    class DummyPixel:
         def __init__(self):
-            self.calls = []
-            self.update_called = 0
+            self.fills = []
+            self.show_count = 0
 
-        def set_led_color(self, i, r, g, b):
-            self.calls.append((i, (r, g, b)))
+        def fill(self, color):
+            self.fills.append(color)
 
-        def update_strip(self):
-            self.update_called += 1
+        def show(self):
+            self.show_count += 1
 
-    thread.strip = DummyStrip()
-    thread._set_all(Color(1, 2, 3))
+    thread.px = DummyPixel()
+    thread.get_settings = lambda: {"led": {"brightness": 20}}
+    thread._set_all((1, 2, 3))
 
-    assert thread.strip.calls == [
-        (0, Color(1, 2, 3)),
-        (1, Color(1, 2, 3)),
-        (2, Color(1, 2, 3)),
-    ]
-    assert thread.strip.update_called == 1
+    assert thread.px.fills == [(1, 2, 3)]
+    assert thread.px.show_count == 1
 
 
-def test_run_fills_and_clears_on_exit():
-    settings = {"led": {"brightness": 5}}
+def test_run_clears_on_start_when_stopped():
+    stop_evt = threading.Event()
+    stop_evt.set()
 
-    class DummyStop:
-        def is_set(self):
-            return False
-
-    class DummyStrip:
+    class DummyPixel:
         def __init__(self):
-            self.calls = []
-            self.update_calls = 0
-            self.clear_called = 0
+            self.colors = []
+        def fill(self, color):
+            self.colors.append(color)
+        def show(self):
+            pass
 
-        def set_led_color(self, i, r, g, b):
-            self.calls.append((i, (r, g, b)))
+    led = LEDThread(stop_evt=stop_evt, get_settings=lambda: {"led": {"brightness": 0}})
+    led.px = DummyPixel()
+    led.run()
 
-        def update_strip(self):
-            self.update_calls += 1
-
-        def clear_strip(self):
-            self.clear_called += 1
-
-    thread = LEDThread(stop_evt=DummyStop(), get_settings=lambda: settings, count=3)
-    thread.strip = DummyStrip()
-
-    with patch('time.sleep', lambda s: None):
-        thread.run()
-
-    expected_color = Color(0, 5, 0)
-    assert thread.strip.calls == [
-        (0, expected_color),
-        (1, expected_color),
-        (2, expected_color),
-    ]
-    # 3 updates for pixels + 1 after clearing
-    assert thread.strip.update_calls == 4
-    assert thread.strip.clear_called == 1
+    # When stop is set before run, thread should clear strip once
+    assert led.px.colors == [(0, 0, 0)]
