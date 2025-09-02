@@ -6,7 +6,9 @@ import PhotosUI
 final class BluetoothManager: NSObject, ObservableObject {
     @Published var devices: [CBPeripheral] = []
     @Published var connected: CBPeripheral?
+
     @Published var status: String = "Initializing Bluetooth"
+
 
     private var central: CBCentralManager!
     private var transferCharacteristic: CBCharacteristic?
@@ -16,6 +18,7 @@ final class BluetoothManager: NSObject, ObservableObject {
         central = CBCentralManager(delegate: self, queue: nil)
     }
 
+
     /// Manually trigger a scan if Bluetooth is already powered on.
     func startScan() {
         if central.state == .poweredOn {
@@ -23,6 +26,7 @@ final class BluetoothManager: NSObject, ObservableObject {
             central.scanForPeripherals(withServices: nil, options: nil)
         }
     }
+
 
     func connect(_ peripheral: CBPeripheral) {
         central.connect(peripheral, options: nil)
@@ -48,7 +52,9 @@ extension BluetoothManager: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
+
             startScan()
+
         case .unauthorized: status = "Bluetooth unauthorized"
         case .poweredOff: status = "Bluetooth off"
         default: status = "Bluetooth unavailable"
@@ -58,17 +64,21 @@ extension BluetoothManager: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
                         advertisementData: [String : Any], rssi RSSI: NSNumber) {
         if !devices.contains(peripheral) {
+
             DispatchQueue.main.async {
                 self.devices.append(peripheral)
             }
+
         }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+
         DispatchQueue.main.async {
             self.status = "Connected to \(peripheral.name ?? "Pi")"
             self.connected = peripheral
         }
+
         peripheral.delegate = self
         peripheral.discoverServices(nil)
     }
@@ -86,10 +96,12 @@ extension BluetoothManager: CBPeripheralDelegate {
         for char in service.characteristics ?? [] {
             // assume writable characteristic
             if char.properties.contains(.write) {
+
                 DispatchQueue.main.async {
                     self.transferCharacteristic = char
                     self.status = "Ready to send"
                 }
+
             }
         }
     }
