@@ -31,6 +31,16 @@ python3 app/main.py
 
 Use the connected buttons to navigate the on‑screen menu.  Settings are stored in `settings.json` and persist across restarts.
 
+### Bluetooth file upload
+
+An optional Bluetooth server is available to receive files from the companion iOS app.  Run the receiver on the Pi:
+
+```
+python3 app/file_receiver.py
+```
+
+Files sent from the app are stored under `uploads/` within the project directory.
+
 ## Quick Start Example
 
 ```bash
