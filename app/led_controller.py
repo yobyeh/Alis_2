@@ -123,6 +123,14 @@ class LEDThread(threading.Thread):
 
         self.set_pattern("off")
 
+    def send_raw_frame(self, payload_grb: bytes, brightness: Optional[int] = None) -> None:
+        """Send a pre-built GRB payload to the LEDs."""
+
+        ser = self._ensure_serial()
+        if not ser:
+            return
+        send_frame(ser, payload_grb, brightness if brightness is not None else self._get_brightness())
+
     # ------------------ internal helpers ------------------
     def _current_pattern(self) -> str:
         with self._pattern_lock:
