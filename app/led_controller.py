@@ -99,37 +99,39 @@ class LEDThread(threading.Thread):
         self.strips_used = strips_used
         self.default_brightness = brightness
         self.hold_sec = hold_sec
-        # Default to LEDs off; explicit actions can start test patterns
         self._pattern = "off"
         self._pattern_lock = threading.Lock()
 
         self.port = port or find_teensy()
         self.ser: Optional[serial.Serial] = ser
 
+        # NEW: serialize writes to the Teensy
+        self._io_lock = threading.Lock()
+
     # ------------------- public API -------------------
     def set_pattern(self, name: str) -> None:
         """Select a pattern for the thread to run."""
-
         with self._pattern_lock:
             self._pattern = name
+        # If we were asked to turn off immediately, clear LEDs now.
+        if name == "off":
+            self._clear_immediate()
 
     def start_test(self) -> None:
         """Convenience wrapper to start the RGB test pattern."""
-
         self.set_pattern("rgb_cycle")
 
     def stop_test(self) -> None:
         """Stop any active test pattern and turn LEDs off."""
-
-        self.set_pattern("off")
+        self.set_pattern("off")  # set + immediate clear via set_pattern
 
     def send_raw_frame(self, payload_grb: bytes, brightness: Optional[int] = None) -> None:
         """Send a pre-built GRB payload to the LEDs."""
-
         ser = self._ensure_serial()
         if not ser:
             return
-        send_frame(ser, payload_grb, brightness if brightness is not None else self._get_brightness())
+        with self._io_lock:
+            send_frame(ser, payload_grb, brightness if brightness is not None else self._get_brightness())
 
     # ------------------ internal helpers ------------------
     def _current_pattern(self) -> str:
@@ -169,7 +171,15 @@ class LEDThread(threading.Thread):
         if not ser:
             return
         payload = build_solid_grb(self.width, self.height, self.strips_used, color)
-        send_frame(ser, payload, self._get_brightness())
+        with self._io_lock:
+            send_frame(ser, payload, self._get_brightness())
+
+    def _clear_immediate(self) -> None:
+        """Immediately clear LEDs to black (thread-safe)."""
+        try:
+            self._set_all((0, 0, 0))
+        except Exception:
+            pass
 
     # -------------------- thread loop --------------------
     def run(self) -> None:  # pragma: no cover - contains time-based loop
@@ -190,9 +200,16 @@ class LEDThread(threading.Thread):
                 if line == "RDY":
                     break
 
+        last_pattern: Optional[str] = None
+
         try:
             while not self.stop_evt.is_set():
                 pattern = self._current_pattern()
+
+                # NEW: clear on transition *away* from rgb_cycle
+                if last_pattern == "rgb_cycle" and pattern != "rgb_cycle":
+                    self._clear_immediate()
+
                 if pattern == "rgb_cycle":
                     for name, col in (
                         ("RED", (25, 0, 0)),
@@ -212,9 +229,12 @@ class LEDThread(threading.Thread):
                             time.sleep(0.05)
                 else:
                     time.sleep(0.1)
+
+                last_pattern = pattern
         finally:
+            # Always leave LEDs off when the thread exits
             try:
-                self._set_all((0, 0, 0))
+                self._clear_immediate()
             except Exception:
                 pass
             self._close_serial()
