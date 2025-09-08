@@ -10,7 +10,6 @@ import json
 import os
 import time
 import threading
-import subprocess
 from typing import Dict, Any
 
 from app.interface import DisplayThread, ButtonsThread
@@ -18,7 +17,6 @@ from app.menu_engine import MenuController
 from app.status import StatusProvider
 from app.storage import load_json, save_json_atomic
 from app.led_controller import LEDThread
-from app import bluetooth
 
 # Paths are relative to the project root (where you run Alis_Script.sh)
 MENU_PATH     = "menu.json"
@@ -46,12 +44,6 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "network": {
         "wifi_connected": False,     # (stub; status bar shows basic placeholder)
         "ssid": ""
-    },
-    "bluetooth": {
-        "power": False,
-        "discoverable": False,
-        "pairable": False,
-        "paired_count": 0,
     }
 }
 
@@ -73,94 +65,13 @@ class DebouncedSaver:
             self._timer.start()
 
 
-def ensure_bluetooth_visible() -> None:
-    """Attempt to make the Pi's Bluetooth adapter visible.
-
-    Executes a few `bluetoothctl` commands to power on the adapter and
-    enable discoverability. Any failures are printed but do not abort
-    the program so that the rest of the app can continue to run even if
-    Bluetooth is unavailable.
-    """
-
-    cmds = [
-        ["rfkill", "unblock", "bluetooth"],
-        ["hciconfig", "hci0", "up"],
-        ["bluetoothctl", "power", "on"],
-        ["bluetoothctl", "agent", "NoInputNoOutput"],
-
-        # Disable the default 3 minute timeout so we stay visible
-        ["bluetoothctl", "discoverable-timeout", "0"],
-        ["bluetoothctl", "pairable", "on"],
-        ["bluetoothctl", "discoverable", "on"],
-
-        ["bluetoothctl", "default-agent"],
-    ]
-
-    def _run(cmd):
-        """Run a command, retrying with sudo if needed.
-
-        Any missing binaries or failures are logged and reported as a
-        False result so the caller can stop issuing further commands
-        without raising an exception.
-        """
-        try:
-            subprocess.run(cmd, check=True, capture_output=True)
-            return True
-        except FileNotFoundError:
-            print(f"[Bluetooth] {' '.join(cmd)} not found")
-            return False
-        except subprocess.CalledProcessError as exc:
-            err = (exc.stderr or b"").decode().strip()
-            try:
-                subprocess.run(["sudo", *cmd], check=True, capture_output=True)
-                return True
-            except FileNotFoundError:
-                print(f"[Bluetooth] sudo {' '.join(cmd)} not found")
-                return False
-            except subprocess.CalledProcessError as exc2:
-                err2 = (exc2.stderr or b"").decode().strip()
-                print(f"[Bluetooth] {' '.join(cmd)} failed: {err or err2}")
-                return False
-
-    for cmd in cmds:
-        if not _run(cmd):
-            break
-
-    # Log the adapter status so users can see if commands took effect
-    try:
-        info = subprocess.run(
-            ["bluetoothctl", "show"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-    except subprocess.CalledProcessError:
-        info = ""
-    if "Powered: yes" not in info or "Discoverable: yes" not in info:
-        print("[Bluetooth] Adapter is not powered or discoverable. "
-              "Try running `sudo bluetoothctl show` for details.")
-
-
-
 def main():
-    # Ensure Bluetooth is powered on and discoverable so the iPhone app
-    # can locate this Pi.
-    ensure_bluetooth_visible()
-
     # 1) Load menu spec
     with open(MENU_PATH, "r") as f:
         menu_spec = json.load(f)
 
     # 2) Load settings (merge defaults, write file if missing/corrupt)
     settings: Dict[str, Any] = load_json(SETTINGS_PATH, DEFAULT_SETTINGS)
-
-    # Sync Bluetooth settings with actual adapter state
-    try:
-        bt_state = bluetooth.get_status()
-        bt_state["paired_count"] = len(bluetooth.list_paired_devices())
-        settings.setdefault("bluetooth", {}).update(bt_state)
-    except Exception:
-        pass
 
     # If a previous run marked restart_required, clear it now that we've restarted successfully
     if settings.get("system", {}).get("restart_required"):

@@ -1,58 +1,137 @@
 {
-  "theme": { "fg": "white", "bg": "black", "accent": "cyan" },
+  "theme": {
+    "fg": "white",
+    "bg": "black",
+    "accent": "cyan"
+  },
   "root": "home",
   "screens": {
     "home": {
       "title": "Alis",
       "items": [
-        { "type": "screen-link", "label": "Shows",    "to": "shows" },
-        { "type": "screen-link", "label": "Settings", "to": "settings" },
-        { "type": "screen-link", "label": "Bluetooth", "to": "bluetooth" },
-        { "type": "action",      "label": "Shutdown", "action": "system.shutdown", "confirm": true }
+        {
+          "type": "screen-link",
+          "label": "Shows",
+          "to": "shows"
+        },
+        {
+          "type": "screen-link",
+          "label": "Settings",
+          "to": "settings"
+        },
+        {
+          "type": "action",
+          "label": "Shutdown",
+          "action": "system.shutdown",
+          "confirm": true
+        }
       ]
     },
-
     "shows": {
       "title": "Shows",
       "items": [
-        { "type": "select", "label": "Program", "binding": "system.program_select",
-          "options_source": "programs.list" },
-        { "type": "screen-link", "label": "LED Test", "to": "led-test" }
+        {
+          "type": "select",
+          "label": "Program",
+          "binding": "system.program_select",
+          "options_source": "programs.list"
+        },
+        {
+          "type": "screen-link",
+          "label": "LED Test",
+          "to": "led-test"
+        }
       ]
     },
-
     "led-test": {
       "title": "LED Test",
       "items": [
-        { "type": "action", "label": "RGB Cycle", "action": "led.rgb_cycle" },
-        { "type": "action", "label": "Stop", "action": "led.stop" }
+        {
+          "type": "action",
+          "label": "RGB Cycle",
+          "action": "led.rgb_cycle"
+        },
+        {
+          "type": "action",
+          "label": "Stop",
+          "action": "led.stop"
+        }
       ]
     },
-
     "settings": {
       "title": "Settings",
       "items": [
-        { "type": "group", "label": "Display" },
-        { "type": "select", "label": "Screen Brightness", "binding": "display.brightness", "options": [25,50,75,100] },
-        { "type": "select", "label": "Rotation", "binding": "display.rotation", "options": [0,90,180,270] },
-        { "type": "toggle", "label": "Screensaver", "binding": "display.screensaver_enabled" },
-        { "type": "number", "label": "Sleep After (s)", "binding": "display.sleep_seconds", "min": 10, "max": 3600, "step": 10 },
-        { "type": "group", "label": "LEDs" },
-        { "type": "number", "label": "LED Brightness", "binding": "led.brightness", "min": 0, "max": 255, "step": 5 },
-
-        { "type": "group", "label": "System" },
-        { "type": "number", "label": "Animation Speed", "binding": "ui.anim_speed", "min": 1, "max": 10, "step": 1 },
-        { "type": "number", "label": "Auto Shutdown (min)", "binding": "system.auto_shutdown_min", "min": 0, "max": 120, "step": 5 }
-      ]
-    },
-
-    "bluetooth": {
-      "title": "Bluetooth",
-      "items": [
-        { "type": "toggle", "label": "Power", "binding": "bluetooth.power" },
-        { "type": "toggle", "label": "Discoverable", "binding": "bluetooth.discoverable" },
-        { "type": "toggle", "label": "Pairable", "binding": "bluetooth.pairable" },
-        { "type": "info", "label": "Paired Devices", "binding": "bluetooth.paired_count" }
+        {
+          "type": "group",
+          "label": "Display"
+        },
+        {
+          "type": "select",
+          "label": "Screen Brightness",
+          "binding": "display.brightness",
+          "options": [
+            25,
+            50,
+            75,
+            100
+          ]
+        },
+        {
+          "type": "select",
+          "label": "Rotation",
+          "binding": "display.rotation",
+          "options": [
+            0,
+            90,
+            180,
+            270
+          ]
+        },
+        {
+          "type": "toggle",
+          "label": "Screensaver",
+          "binding": "display.screensaver_enabled"
+        },
+        {
+          "type": "number",
+          "label": "Sleep After (s)",
+          "binding": "display.sleep_seconds",
+          "min": 10,
+          "max": 3600,
+          "step": 10
+        },
+        {
+          "type": "group",
+          "label": "LEDs"
+        },
+        {
+          "type": "number",
+          "label": "LED Brightness",
+          "binding": "led.brightness",
+          "min": 0,
+          "max": 255,
+          "step": 5
+        },
+        {
+          "type": "group",
+          "label": "System"
+        },
+        {
+          "type": "number",
+          "label": "Animation Speed",
+          "binding": "ui.anim_speed",
+          "min": 1,
+          "max": 10,
+          "step": 1
+        },
+        {
+          "type": "number",
+          "label": "Auto Shutdown (min)",
+          "binding": "system.auto_shutdown_min",
+          "min": 0,
+          "max": 120,
+          "step": 5
+        }
       ]
     }
   }
