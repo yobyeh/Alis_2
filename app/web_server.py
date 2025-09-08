@@ -110,6 +110,7 @@ function init(){
 
   const colorEl = document.getElementById('color');
   const clearBtn = document.getElementById('clear');
+  const drawBtn = document.getElementById('drawmode');
 
   const padCtx = setupCanvas(pad);
 
@@ -155,6 +156,10 @@ function init(){
     // wipe local pad & preview
     padCtx.fillStyle = '#111'; padCtx.fillRect(0,0,pad.clientWidth,pad.clientHeight);
     pctx.clearRect(0,0,preview.width,preview.height);
+  });
+
+  drawBtn.addEventListener('click', ()=>{
+    fetch('/draw_mode').catch(()=>{});
   });
 
   // ---- Preview (server → client) ----
@@ -209,6 +214,9 @@ window.onload = init;
 <!-- Touch pad to draw -->
 <canvas id="pad"></canvas>
 
+<!-- Enable draw mode on the controller -->
+<button id="drawmode" type="button">Draw</button>
+
 <!-- Live preview of the LED matrix -->
 <canvas id="preview"></canvas>
 </body>
@@ -234,6 +242,10 @@ class _Handler(BaseHTTPRequestHandler):
         elif path.rstrip("/") == "/stop":
             self.server.anim_thread.set_mode("static")  # type: ignore[attr-defined]
             self._redirect("/")
+        elif path.rstrip("/") == "/draw_mode":
+            self.server.anim_thread.set_mode("draw")  # type: ignore[attr-defined]
+            self.send_response(204)
+            self.end_headers()
         elif path.rstrip("/") == "/draw":
             # Determine matrix size for the pad/preview
             w = h = 16
