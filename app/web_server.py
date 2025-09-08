@@ -46,86 +46,171 @@ function toggleMenu(){const m=document.getElementById('menu');m.style.display=m.
 </body>
 </html>"""
 
-# NOTE: we will replace the literal token {WS_PORT} with the actual port via .replace()
+# NOTE: tokens {WS_PORT}, {LED_W}, {LED_H} get replaced via .replace()
 DRAW_PAGE = """<!doctype html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Draw</title>
 <style>
-body { font-family: sans-serif; margin:0; }
-header { background:#333; color:white; padding:0.5em 1em; display:flex; align-items:center; }
-#menu { display:none; flex-direction:column; background:#444; position:absolute; top:3em; left:0; right:0; }
-#menu a { color:white; padding:0.5em 1em; text-decoration:none; }
-#hamburger { background:none; border:none; color:white; font-size:1.5em; margin-left:auto; }
-.grid { display:grid; grid-template-columns:repeat(16,20px); grid-template-rows:repeat(16,20px); margin:1em; touch-action:none; }
-.cell { width:20px; height:20px; border:1px solid #555; }
-.palette { margin:1em; }
-.swatch { width:20px; height:20px; display:inline-block; margin:0 5px; cursor:pointer; border:1px solid #000; }
+  body { margin:0; font-family: sans-serif; background:#000; color:#eee; }
+  header { background:#333; color:white; padding:.5em 1em; display:flex; align-items:center; }
+  #menu { display:none; flex-direction:column; background:#444; position:absolute; top:3em; left:0; right:0; }
+  #menu a { color:white; padding:.5em 1em; text-decoration:none; }
+  #hamburger { background:none; border:none; color:white; font-size:1.5em; margin-left:auto; }
+  #hud { display:flex; gap:.5rem; align-items:center; padding:.5rem 1rem; }
+  #pad { width:100vw; height: calc(60vh - 3rem); background:#111; display:block; touch-action:none; }
+  #preview { width:100vw; height: 40vh; background:#000; display:block; image-rendering: pixelated; }
+  button, input[type=color] { font-size:1rem; padding:.4rem .8rem; }
 </style>
 <script>
 function toggleMenu(){const m=document.getElementById('menu');m.style.display=m.style.display==='block'?'none':'block';}
-const WS_PORT={WS_PORT};
-let current='#ff0000';
-let drawing=false;
+
+const WS_PORT = {WS_PORT};
+const LED_W = {LED_W};
+const LED_H = {LED_H};
+
+let ws, drawing=false, sendQueue=[], lastSent=0;
+
+function hexToRgb(hex){
+  const x=hex.replace('#','');
+  return [parseInt(x.slice(0,2),16), parseInt(x.slice(2,4),16), parseInt(x.slice(4,6),16)];
+}
+
+function setupCanvas(canvas){
+  const ctx = canvas.getContext('2d');
+  function resize(){
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth;
+    const cssH = canvas.clientHeight;
+    canvas.width = Math.max(1, Math.floor(cssW * dpr));
+    canvas.height = Math.max(1, Math.floor(cssH * dpr));
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle = '#111'; ctx.fillRect(0,0,cssW,cssH);
+  }
+  new ResizeObserver(resize).observe(canvas);
+  resize();
+  return ctx;
+}
+
+function canvasToLed(canvas, clientX, clientY){
+  const rect = canvas.getBoundingClientRect();
+  const nx = (clientX - rect.left) / rect.width;   // 0..1
+  const ny = (clientY - rect.top)  / rect.height;  // 0..1
+  let ix = Math.min(LED_W-1, Math.max(0, Math.floor(nx * LED_W)));
+  let iy = Math.min(LED_H-1, Math.max(0, Math.floor(ny * LED_H)));
+  return [ix, iy];
+}
+
 function init(){
-  const grid=document.getElementById('grid');
-  for(let y=0;y<16;y++){
-    for(let x=0;x<16;x++){
-      const c=document.createElement('div');c.className='cell';c.dataset.x=x;c.dataset.y=y;
-      c.addEventListener('pointerdown',paint);
-      c.addEventListener('pointermove',e=>{if(drawing)paint(e);});
-      grid.appendChild(c);
+  const pad = document.getElementById('pad');
+  const preview = document.getElementById('preview');
+  const pctx = preview.getContext('2d');
+  pctx.imageSmoothingEnabled = false;
+
+  const colorEl = document.getElementById('color');
+  const clearBtn = document.getElementById('clear');
+
+  const padCtx = setupCanvas(pad);
+
+  ws = new WebSocket(`ws://${location.hostname}:${WS_PORT}`);
+  ws.addEventListener('open', ()=>console.log('ws open'));
+  ws.addEventListener('close', ()=>console.log('ws closed'));
+
+  // Local ink feedback on the pad
+  function drawDot(x,y,color){
+    padCtx.fillStyle = color;
+    padCtx.beginPath(); padCtx.arc(x,y,6,0,Math.PI*2); padCtx.fill();
+  }
+
+  // Handle pointer input; use coalesced events if available for smoother lines
+  function handlePoint(ev){
+    const events = (ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev]);
+    const rgb = hexToRgb(colorEl.value);
+    const rect = pad.getBoundingClientRect();
+    for (const e of events){
+      const [ix, iy] = canvasToLed(pad, e.clientX, e.clientY);
+      sendQueue.push({x:ix, y:iy, r:rgb[0], g:rgb[1], b:rgb[2]});
+      drawDot(e.clientX - rect.left, e.clientY - rect.top, colorEl.value);
     }
   }
-  grid.addEventListener('pointerdown',()=>{drawing=true;});
-  document.addEventListener('pointerup',()=>{drawing=false;});
-  const palette=document.getElementById('palette');
-  ['#ff0000','#00ff00','#0000ff','#ffffff','#000000'].forEach(col=>{
-    const s=document.createElement('div');s.className='swatch';s.style.background=col;
-    s.addEventListener('click',()=>{current=col;});palette.appendChild(s);});
-  const ws=new WebSocket(`ws://${location.hostname}:${WS_PORT}`);
-  ws.onmessage=e=>{
-    const msg=JSON.parse(e.data);
-    const cells=grid.children;
-    if(msg.type==='frame_rle'){
-      let idx=0;
-      for(const row of msg.rows){
-        for(const run of row){
-          const count=run[0];const rgb=run[1];
-          for(let k=0;k<count;k++){
-            if(idx<cells.length)cells[idx].style.background=`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+
+  pad.addEventListener('pointerdown', (e)=>{ drawing=true; pad.setPointerCapture(e.pointerId); handlePoint(e); });
+  pad.addEventListener('pointermove',  (e)=>{ if (drawing) handlePoint(e); });
+  pad.addEventListener('pointerup',    ()=>{ drawing=false; });
+  pad.addEventListener('pointercancel',()=>{ drawing=false; });
+
+  // Batch-send ~50 FPS
+  function tick(ts){
+    if (ws && ws.readyState===1 && sendQueue.length && (!lastSent || ts - lastSent > 20)){
+      const pts = sendQueue; sendQueue = []; lastSent = ts;
+      ws.send(JSON.stringify({type:"points", pts}));
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  clearBtn.addEventListener('click', ()=>{
+    if (ws && ws.readyState===1) ws.send(JSON.stringify({type:"clear"}));
+    // wipe local pad & preview
+    padCtx.fillStyle = '#111'; padCtx.fillRect(0,0,pad.clientWidth,pad.clientHeight);
+    pctx.clearRect(0,0,preview.width,preview.height);
+  });
+
+  // ---- Preview (server → client) ----
+  // We paint LED_W × LED_H pixels into the preview canvas, scaled by CSS.
+  function ensurePreviewSize(){
+    preview.width = LED_W;
+    preview.height = LED_H;
+  }
+  ensurePreviewSize();
+
+  ws.onmessage = (e)=>{
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'frame_rle'){
+      let idx = 0;
+      for (const row of msg.rows){
+        for (const run of row){
+          const count = run[0]; const rgb = run[1];
+          for (let k=0;k<count;k++){
+            const x = idx % LED_W;
+            const y = Math.floor(idx / LED_W);
+            pctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+            pctx.fillRect(x, y, 1, 1);
             idx++;
           }
         }
       }
-    } else if(msg.type==='delta'){
-      for(let j=0;j<msg.indices.length;j++){
-        const i=msg.indices[j];
-        const c=msg.rgb[j];
-        if(i<cells.length)cells[i].style.background=`rgb(${c[0]},${c[1]},${c[2]})`;
+    } else if (msg.type === 'delta'){
+      const idxs = msg.indices, rgbs = msg.rgb;
+      for (let j=0;j<idxs.length;j++){
+        const i = idxs[j], c = rgbs[j];
+        const x = i % LED_W;
+        const y = Math.floor(i / LED_W);
+        pctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+        pctx.fillRect(x, y, 1, 1);
       }
     }
   };
-  window._ws=ws;
 }
-function paint(e){
-  const cell=e.target;if(!cell.dataset)return;
-  cell.style.background=current;
-  if(window._ws && window._ws.readyState===1){
-    window._ws.send(JSON.stringify({x:parseInt(cell.dataset.x),y:parseInt(cell.dataset.y),color:current}));
-  }
-}
-window.onload=init;
+
+window.onload = init;
 </script>
 </head>
 <body>
 <header><h1>Alis</h1><button id="hamburger" onclick="toggleMenu()">☰</button></header>
 <nav id="menu"><a href="/">Home</a><a href="/draw">Draw</a></nav>
-<div id="content">
-<div id="grid" class="grid"></div>
-<div id="palette" class="palette"></div>
+
+<div id="hud">
+  <button id="clear">Clear</button>
+  <label>Color <input id="color" type="color" value="#00aaff"></label>
 </div>
+
+<!-- Touch pad to draw -->
+<canvas id="pad"></canvas>
+
+<!-- Live preview of the LED matrix -->
+<canvas id="preview"></canvas>
 </body>
 </html>"""
 
@@ -150,8 +235,16 @@ class _Handler(BaseHTTPRequestHandler):
             self.server.anim_thread.set_mode("static")  # type: ignore[attr-defined]
             self._redirect("/")
         elif path.rstrip("/") == "/draw":
-            # Avoid str.format() so CSS/JS braces don't break — just replace the token.
-            html = DRAW_PAGE.replace("{WS_PORT}", str(self.server.ws_port))  # type: ignore[attr-defined]
+            # Determine matrix size for the pad/preview
+            w = h = 16
+            try:
+                _buf, w, h = self.server.anim_thread.framebuffer_rgb_bytes()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            html = (DRAW_PAGE
+                    .replace("{WS_PORT}", str(self.server.ws_port))      # type: ignore[attr-defined]
+                    .replace("{LED_W}", str(w))
+                    .replace("{LED_H}", str(h)))
             self._send_html(html)
         elif path == "/":
             self._send_html(HOME_PAGE)
@@ -280,6 +373,7 @@ class WebServerThread(threading.Thread):
                 self.clients.discard(ws)
 
     async def _ws_handler(self, websocket: Any, path: str) -> None:
+        # If needed by your AnimationControllerThread, it can still push messages via this 'send'
         send = lambda msg: asyncio.run_coroutine_threadsafe(websocket.send(msg), self.loop)
         self.anim_thread.register_client(send)
         self.clients.add(websocket)
@@ -287,15 +381,37 @@ class WebServerThread(threading.Thread):
             async for message in websocket:
                 try:
                     data = json.loads(message)
-                    color = data.get("color", "#000000")
-                    r = int(color[1:3], 16)
-                    g = int(color[3:5], 16)
-                    b = int(color[5:7], 16)
-                    self.anim_thread.update_pixel(
-                        int(data.get("x", 0)),
-                        int(data.get("y", 0)),
-                        (r, g, b),
-                    )
+                    t = data.get("type")
+                    if t == "points":
+                        # Batch of points: [{x,y,r,g,b}, ...]
+                        pts = data.get("pts", [])
+                        for p in pts:
+                            self.anim_thread.update_pixel(int(p["x"]), int(p["y"]),
+                                                          (int(p["r"]), int(p["g"]), int(p["b"])))
+                        if hasattr(self.anim_thread, "flush"):
+                            self.anim_thread.flush()  # optional
+                    elif t == "clear":
+                        if hasattr(self.anim_thread, "clear_panel"):
+                            self.anim_thread.clear_panel()  # optional API
+                        else:
+                            # Fallback: paint black across the matrix if size is known
+                            try:
+                                _buf, w, h = self.anim_thread.framebuffer_rgb_bytes()
+                                for yy in range(h):
+                                    for xx in range(w):
+                                        self.anim_thread.update_pixel(xx, yy, (0,0,0))
+                                if hasattr(self.anim_thread, "flush"):
+                                    self.anim_thread.flush()
+                            except Exception:
+                                pass
+                    else:
+                        # Back-compat: single pixel {x,y,color:"#rrggbb"}
+                        if "x" in data and "y" in data and "color" in data:
+                            color = data["color"]
+                            r = int(color[1:3], 16); g = int(color[3:5], 16); b = int(color[5:7], 16)
+                            self.anim_thread.update_pixel(int(data["x"]), int(data["y"]), (r, g, b))
+                            if hasattr(self.anim_thread, "flush"):
+                                self.anim_thread.flush()
                 except Exception:
                     continue
         finally:
