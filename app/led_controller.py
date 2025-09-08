@@ -99,7 +99,7 @@ class LEDThread(threading.Thread):
         self.strips_used = strips_used
         self.default_brightness = brightness
         self.hold_sec = hold_sec
-        self._pattern = "off"
+        self._pattern = "rgb_cycle"   # Option A: start in rgb_cycle
         self._pattern_lock = threading.Lock()
 
         self.port = port or find_teensy()
@@ -154,15 +154,17 @@ class LEDThread(threading.Thread):
 
     # -------------------- thread loop --------------------
     def run(self) -> None:  # pragma: no cover - contains time-based loop
+        print("[LED] thread starting up")
         ser = self._ensure_serial()
         if not ser:
             while not self.stop_evt.is_set():
                 time.sleep(0.5)
             return
 
+        # Flush stale boot text and wait up to 5s for RDY once
         ser.reset_input_buffer()
         t0 = time.time()
-        while time.time() - t0 < 2.0 and not self.stop_evt.is_set():
+        while time.time() - t0 < 5.0 and not self.stop_evt.is_set():
             line = ser.readline().decode("utf-8", "ignore").strip()
             if line:
                 logging.info("Teensy: %s", line)
@@ -197,4 +199,3 @@ class LEDThread(threading.Thread):
             except Exception:
                 pass
             self._close_serial()
-
