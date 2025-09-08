@@ -1,0 +1,136 @@
+#include <OctoWS2811.h>
+
+// ====== Match these on the Pi ======
+static const int WIDTH       = 16;
+static const int HEIGHT      = 16;
+static const int STRIPS_USED = 1;    // number of Octo outputs you're using
+static const int STRIP_INDEX = 0;    // first Octo output index (0..7)
+static const bool SERPENTINE = true; // set false if all rows left->right
+
+// Derived:
+static const int PIXELS_PER_STRIP = WIDTH * HEIGHT;
+static const int TOTAL_PIXELS     = PIXELS_PER_STRIP * STRIPS_USED;
+
+// Octo buffers (per library guidance: 6 ints per LED)
+DMAMEM int displayMemory[PIXELS_PER_STRIP * 6];
+int       drawingMemory[PIXELS_PER_STRIP * 6];
+
+const int config = WS2811_GRB | WS2811_800kHz;
+OctoWS2811 leds(PIXELS_PER_STRIP, displayMemory, drawingMemory, config);
+
+// ---------- helpers ----------
+inline int xyToIndex(int x, int y) {
+  if (SERPENTINE && (y & 1)) x = (WIDTH - 1) - x;
+  return y * WIDTH + x;
+}
+inline int frameIndexToOctoPixel(int i) {
+  int strip   = i / PIXELS_PER_STRIP;
+  int inStrip = i % PIXELS_PER_STRIP;
+  int y = inStrip / WIDTH;
+  int x = inStrip % WIDTH;
+  return (STRIP_INDEX + strip) * PIXELS_PER_STRIP + xyToIndex(x, y);
+}
+inline uint32_t packRGB(uint8_t r, uint8_t g, uint8_t b) {
+  // Octo's setPixel() expects RGB; color order is handled by 'config'
+  return ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+}
+inline uint8_t scale8(uint8_t v, uint8_t pct) { return (uint16_t)v * pct / 100; }
+
+void solid(uint8_t r, uint8_t g, uint8_t b) {
+  uint32_t c = packRGB(r,g,b);
+  for (int s = 0; s < STRIPS_USED; ++s) {
+    int base = (STRIP_INDEX + s) * PIXELS_PER_STRIP;
+    for (int i = 0; i < PIXELS_PER_STRIP; ++i) leds.setPixel(base + i, c);
+  }
+  leds.show();
+}
+
+void selfTestRGB(uint8_t pct = 10) { // dim R,G,B, then black
+  uint8_t R = scale8(255,pct), G = scale8(255,pct), B = scale8(255,pct);
+  solid(R,0,0); delay(400);
+  solid(0,G,0); delay(400);
+  solid(0,0,B); delay(400);
+  solid(0,0,0); delay(150);
+}
+
+// Read exactly n bytes (with timeout)
+bool readExact(uint8_t* buf, size_t n, uint32_t timeout_ms = 5000) {
+  uint32_t start = millis(); size_t got = 0;
+  while (got < n) {
+    if (Serial.available()) got += Serial.readBytes((char*)buf + got, n - got);
+    if (millis() - start > timeout_ms) return false;
+    yield();
+  }
+  return true;
+}
+
+// Scan until we see header magic AB CD F1 00
+bool waitForHeader() {
+  const uint8_t MAGIC[4] = {0xAB,0xCD,0xF1,0x00};
+  uint8_t win[4] = {0,0,0,0};
+  uint32_t start = millis();
+  while (millis() - start < 5000) {
+    if (Serial.available()) {
+      win[0] = win[1]; win[1] = win[2]; win[2] = win[3];
+      win[3] = (uint8_t)Serial.read();
+      if (win[0]==MAGIC[0] && win[1]==MAGIC[1] && win[2]==MAGIC[2] && win[3]==MAGIC[3]) {
+        return true;
+      }
+    } else {
+      delay(1);
+    }
+  }
+  return false;
+}
+
+void setup() {
+  Serial.begin(115200);   // baud ignored on USB, but required by API
+  pinMode(LED_BUILTIN, OUTPUT);
+  leds.begin(); leds.show();
+
+  // power-on self-test
+  selfTestRGB(10);
+
+  // small delay so the host can open the port
+  uint32_t t0 = millis();
+  while (!Serial && millis() - t0 < 2000) { /* wait up to 2s */ }
+
+  // Announce once (no spam)
+  Serial.print("RDY\n");
+}
+
+void loop() {
+  // Toggle on-board LED slowly while idle
+  static uint32_t tHb = 0;
+  if (millis() - tHb > 500) { tHb = millis(); digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); }
+
+  // ---- sync to header ----
+  if (!waitForHeader()) return;
+
+  // ---- read length + brightness ----
+  uint8_t meta[3];
+  if (!readExact(meta, 3)) return;
+  uint16_t num_pixels = (uint16_t)meta[0] | ((uint16_t)meta[1] << 8);
+  uint8_t  br         = meta[2];
+  if (br > 100) br = 100;
+
+  if (num_pixels != TOTAL_PIXELS) {
+    // Drain the announced payload and re-sync
+    uint32_t toDrain = (uint32_t)num_pixels * 3, t0 = millis();
+    while (toDrain && millis() - t0 < 50) { if (Serial.available()) { Serial.read(); --toDrain; } }
+    Serial.print("ERR LEN\n");
+    return;
+  }
+
+  // ---- read payload (GRB) and render ----
+  for (uint32_t i = 0; i < num_pixels; ++i) {
+    uint8_t g,r,b;
+    if (!readExact(&g,1) || !readExact(&r,1) || !readExact(&b,1)) { Serial.print("ERR TO\n"); return; }
+    if (br < 100) { g = scale8(g,br); r = scale8(r,br); b = scale8(b,br); }
+    // payload is GRB; convert to RGB for setPixel()
+    leds.setPixel(frameIndexToOctoPixel(i), packRGB(r,g,b));
+  }
+
+  leds.show();
+  Serial.print("ACK\n");
+}
