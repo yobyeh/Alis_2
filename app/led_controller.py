@@ -4,9 +4,9 @@
 """Threaded driver for the LED matrix.
 
 This module talks to a Teensy based LED controller over a serial
-connection.  The protocol matches the small standalone script used by the
-project for manual testing.  The thread exposes a :class:`LEDThread` class
-which allows selecting simple patterns such as ``rgb_cycle`` or ``off``.
+connection.  It exposes a :class:`LEDThread` class responsible purely for
+sending raw frames.  Higher level patterns or animations are handled by
+other components.
 
 The implementation intentionally keeps hardware specific code small so
 that unit tests can provide a dummy serial object.
@@ -87,7 +87,6 @@ class LEDThread(threading.Thread):
         height: int = 16,
         strips_used: int = 1,
         brightness: int = 30,
-        hold_sec: float = 1.0,
         port: Optional[str] = None,
         ser: Optional[serial.Serial] = None,
     ) -> None:
@@ -98,45 +97,28 @@ class LEDThread(threading.Thread):
         self.height = height
         self.strips_used = strips_used
         self.default_brightness = brightness
-        self.hold_sec = hold_sec
-        self._pattern = "off"
-        self._pattern_lock = threading.Lock()
 
         self.port = port or find_teensy()
         self.ser: Optional[serial.Serial] = ser
 
-        # NEW: serialize writes to the Teensy
+        # serialize writes to the Teensy
         self._io_lock = threading.Lock()
 
     # ------------------- public API -------------------
-    def set_pattern(self, name: str) -> None:
-        """Select a pattern for the thread to run."""
-        with self._pattern_lock:
-            self._pattern = name
-        # If we were asked to turn off immediately, clear LEDs now.
-        if name == "off":
-            self._clear_immediate()
-
-    def start_test(self) -> None:
-        """Convenience wrapper to start the RGB test pattern."""
-        self.set_pattern("rgb_cycle")
-
-    def stop_test(self) -> None:
-        """Stop any active test pattern and turn LEDs off."""
-        self.set_pattern("off")  # set + immediate clear via set_pattern
-
     def send_raw_frame(self, payload_grb: bytes, brightness: Optional[int] = None) -> None:
         """Send a pre-built GRB payload to the LEDs."""
         ser = self._ensure_serial()
         if not ser:
             return
         with self._io_lock:
-            send_frame(ser, payload_grb, brightness if brightness is not None else self._get_brightness())
+            send_frame(
+                ser,
+                payload_grb,
+                brightness if brightness is not None else self._get_brightness(),
+            )
+        print(f"[LED] frame of {len(payload_grb) // 3} pixels sent")
 
     # ------------------ internal helpers ------------------
-    def _current_pattern(self) -> str:
-        with self._pattern_lock:
-            return self._pattern
 
     def _ensure_serial(self) -> Optional[serial.Serial]:
         if self.ser:
@@ -200,37 +182,9 @@ class LEDThread(threading.Thread):
                 if line == "RDY":
                     break
 
-        last_pattern: Optional[str] = None
-
         try:
             while not self.stop_evt.is_set():
-                pattern = self._current_pattern()
-
-                # NEW: clear on transition *away* from rgb_cycle
-                if last_pattern == "rgb_cycle" and pattern != "rgb_cycle":
-                    self._clear_immediate()
-
-                if pattern == "rgb_cycle":
-                    for name, col in (
-                        ("RED", (25, 0, 0)),
-                        ("GREEN", (0, 25, 0)),
-                        ("BLUE", (0, 0, 25)),
-                    ):
-                        if self.stop_evt.is_set() or self._current_pattern() != "rgb_cycle":
-                            break
-                        logging.debug("[LED] %s", name)
-                        self._set_all(col)
-                        t0 = time.time()
-                        while (
-                            not self.stop_evt.is_set()
-                            and self._current_pattern() == "rgb_cycle"
-                            and (time.time() - t0) < self.hold_sec
-                        ):
-                            time.sleep(0.05)
-                else:
-                    time.sleep(0.1)
-
-                last_pattern = pattern
+                time.sleep(0.1)
         finally:
             # Always leave LEDs off when the thread exits
             try:

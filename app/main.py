@@ -19,6 +19,7 @@ from app.status import StatusProvider
 from app.storage import load_json, save_json_atomic
 from app.animation_controller import AnimationControllerThread
 from app.web_server import WebServerThread
+from app.led_controller import LEDThread
 
 # Paths are relative to the project root (where you run Alis_Script.sh)
 MENU_PATH     = "menu.json"
@@ -89,15 +90,16 @@ def main():
 
     # Create stop event and threads early so menu actions can reference them
     stop_evt = threading.Event()
-    anim_thread = AnimationControllerThread(stop_evt=stop_evt)
+    led_thread = LEDThread(stop_evt=stop_evt, get_settings=get_settings)
+    anim_thread = AnimationControllerThread(stop_evt=stop_evt, led_thread=led_thread)
     web_thread = WebServerThread(stop_evt=stop_evt, anim_thread=anim_thread)
 
     # Menu action handler
     def action_handler(name: str) -> None:
         if name == "led.rgb_cycle":
-            anim_thread.set_mode("animation")
+            anim_thread.set_mode("test")
         elif name == "led.stop":
-            anim_thread.set_mode("static")
+            anim_thread.set_mode("idle")
         else:
             print(f"[Menu] action requested: {name}")
 
@@ -129,6 +131,7 @@ def main():
 
 
     try:
+        led_thread.start()
         disp_thread.start()
         btn_thread.start()
         anim_thread.start()
@@ -145,6 +148,7 @@ def main():
         disp_thread.join(timeout=3.0)
         anim_thread.join(timeout=2.0)
         web_thread.join(timeout=2.0)
+        led_thread.join(timeout=2.0)
         # Ensure final settings are flushed
         save_json_atomic(SETTINGS_PATH, settings)
         print("[Alis] Stopped.")
