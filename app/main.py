@@ -17,7 +17,7 @@ from app.interface import DisplayThread, ButtonsThread
 from app.menu_engine import MenuController
 from app.status import StatusProvider
 from app.storage import load_json, save_json_atomic
-from app.led_controller import LEDThread
+from app.animation_controller import AnimationControllerThread
 from app.web_server import WebServerThread
 
 # Paths are relative to the project root (where you run Alis_Script.sh)
@@ -87,17 +87,17 @@ def main():
     def get_settings() -> Dict[str, Any]:
         return settings
 
-    # Create stop event and LED thread early so menu actions can reference it
+    # Create stop event and threads early so menu actions can reference them
     stop_evt = threading.Event()
-    led_thread = LEDThread(stop_evt=stop_evt, get_settings=get_settings)
-    web_thread = WebServerThread(stop_evt=stop_evt, led_thread=led_thread)
+    anim_thread = AnimationControllerThread(stop_evt=stop_evt)
+    web_thread = WebServerThread(stop_evt=stop_evt, anim_thread=anim_thread)
 
     # Menu action handler
     def action_handler(name: str) -> None:
         if name == "led.rgb_cycle":
-            led_thread.start_test()
+            anim_thread.set_mode("animation")
         elif name == "led.stop":
-            led_thread.stop_test()
+            anim_thread.set_mode("static")
         else:
             print(f"[Menu] action requested: {name}")
 
@@ -131,7 +131,7 @@ def main():
     try:
         disp_thread.start()
         btn_thread.start()
-        led_thread.start()
+        anim_thread.start()
         web_thread.start()
         # Main thread can host future supervisors/services
         while True:
@@ -143,7 +143,7 @@ def main():
         # Give threads a moment to exit cleanly
         btn_thread.join(timeout=2.0)
         disp_thread.join(timeout=3.0)
-        led_thread.join(timeout=2.0)
+        anim_thread.join(timeout=2.0)
         web_thread.join(timeout=2.0)
         # Ensure final settings are flushed
         save_json_atomic(SETTINGS_PATH, settings)
