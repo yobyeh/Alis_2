@@ -1,73 +1,114 @@
 # app/led_controller.py
-# LED controller using SPI-based NeoPixel strip
+# LED controller using a Teensy board over serial
+
+"""Threaded driver for the LED matrix.
+
+This module talks to a Teensy based LED controller over a serial
+connection.  The protocol matches the small standalone script used by the
+project for manual testing.  The thread exposes a :class:`LEDThread` class
+which allows selecting simple patterns such as ``rgb_cycle`` or ``off``.
+
+The implementation intentionally keeps hardware specific code small so
+that unit tests can provide a dummy serial object.
+"""
+
+from __future__ import annotations
 
 import logging
 import threading
 import time
-from typing import Callable, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
-try:
-    import board
-    import busio
-    import neopixel
-except Exception:
-    board = busio = neopixel = None  # type: ignore[assignment]
-    logging.warning("neopixel libraries not available; LED controller will be a no-op")
+try:  # pragma: no cover - serial may not be installed in test env
+    import serial
+    from serial.tools import list_ports
+except Exception:  # pragma: no cover - serial fallback
+    serial = None  # type: ignore[assignment]
+    list_ports = None  # type: ignore[assignment]
+
 
 Color = Tuple[int, int, int]
 
 
+# ---------------------------------------------------------------------------
+# Helper functions mirroring the standalone script
+
+def find_teensy(default: str = "/dev/ttyACM0") -> str:
+    """Return the serial port of a connected Teensy if available."""
+
+    if not list_ports:  # pragma: no cover - only when pyserial missing
+        return default
+    for p in list_ports.comports():
+        desc = (p.description or "") + " " + (p.manufacturer or "")
+        if "Teensy" in desc or "Teensyduino" in desc:
+            return p.device
+    return default
+
+
+def build_solid_grb(w: int, h: int, su: int, rgb: Color) -> bytes:
+    """Return a GRB payload filling the whole panel with ``rgb``."""
+
+    r, g, b = rgb
+    trip = bytes((g & 0xFF, r & 0xFF, b & 0xFF))  # GRB order
+    return trip * (w * h * su)
+
+
+def send_frame(ser: Any, payload_grb: bytes, brightness: int) -> None:
+    """Send a frame payload to ``ser`` using the Teensy framing protocol."""
+
+    num = len(payload_grb) // 3
+    hdr = bytes(
+        (0xAB, 0xCD, 0xF1, 0x00, num & 0xFF, (num >> 8) & 0xFF, brightness & 0xFF)
+    )
+    ser.write(hdr + payload_grb)
+    ser.flush()
+    ser.timeout = 2
+    # read optional acknowledgement line
+    try:
+        line = ser.readline().decode("utf-8", "ignore").strip()
+        if line:
+            logging.info("Teensy: %s", line)
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Thread implementation
+
+
 class LEDThread(threading.Thread):
-    """Background worker driving the LED strip.
-
-    The thread idles until a pattern is selected via :meth:`set_pattern`.
-    Currently supported patterns:
-
-    ``rgb_cycle`` – cycle through red, green and blue.
-    ``off``       – turn all LEDs off.
-    """
+    """Background worker driving the LED strip via a Teensy controller."""
 
     def __init__(
         self,
         stop_evt: threading.Event,
         get_settings: Callable[[], dict],
-        led_count: int = 256,
-        baudrate: int = 1_600_000,
-        brightness: float = 0.20,
+        width: int = 16,
+        height: int = 16,
+        strips_used: int = 1,
+        brightness: int = 30,
         hold_sec: float = 1.0,
+        port: Optional[str] = None,
+        ser: Optional[serial.Serial] = None,
     ) -> None:
         super().__init__(daemon=True)
         self.stop_evt = stop_evt
         self.get_settings = get_settings
-        self.led_count = led_count
+        self.width = width
+        self.height = height
+        self.strips_used = strips_used
+        self.default_brightness = brightness
         self.hold_sec = hold_sec
         self._pattern = "off"
         self._pattern_lock = threading.Lock()
-        self.px: Optional[neopixel.NeoPixel] = None  # type: ignore[type-arg]
 
-        if board and busio and neopixel:
-            try:
-                spi = busio.SPI(board.D21, MOSI=board.D20)
-                while not spi.try_lock():
-                    pass
-                spi.configure(baudrate=baudrate, phase=0, polarity=0)
-                spi.unlock()
-                self.px = neopixel.NeoPixel_SPI(
-                    spi,
-                    self.led_count,
-                    pixel_order=neopixel.GRB,
-                    brightness=brightness,
-                    auto_write=False,
-                )
-            except Exception as exc:  # pragma: no cover - hardware dependent
-                logging.warning(f"Failed to init neopixel SPI: {exc}")
-                self.px = None
-        else:  # pragma: no cover - hardware dependent
-            logging.warning("neopixel or board libraries unavailable; LED thread will idle")
+        self.port = port or find_teensy()
+        self.ser: Optional[serial.Serial] = ser
 
     # ------------------- public API -------------------
     def set_pattern(self, name: str) -> None:
         """Select a pattern for the thread to run."""
+
         with self._pattern_lock:
             self._pattern = name
 
@@ -76,29 +117,57 @@ class LEDThread(threading.Thread):
         with self._pattern_lock:
             return self._pattern
 
-    def _update_brightness(self) -> None:
-        if not self.px:
-            return
+    def _ensure_serial(self) -> Optional[serial.Serial]:
+        if self.ser:
+            return self.ser
+        if serial is None:  # pragma: no cover - serial missing
+            logging.warning("pyserial not available; LED thread will idle")
+            self.ser = None
+            return None
         try:
-            b = int(self.get_settings().get("led", {}).get("brightness", 20))
-            self.px.brightness = max(0.0, min(1.0, b / 255.0))
+            self.ser = serial.Serial(self.port, 2_000_000, timeout=0.2)
+        except Exception as exc:  # pragma: no cover - hardware dependent
+            logging.warning("Failed to open serial port %s: %s", self.port, exc)
+            self.ser = None
+        return self.ser
+
+    def _close_serial(self) -> None:
+        if self.ser:
+            try:
+                self.ser.close()
+            except Exception:
+                pass
+            self.ser = None
+
+    def _get_brightness(self) -> int:
+        try:
+            return int(self.get_settings().get("led", {}).get("brightness", self.default_brightness))
         except Exception:
-            pass
+            return self.default_brightness
 
     def _set_all(self, color: Color) -> None:
-        if not self.px:
+        ser = self._ensure_serial()
+        if not ser:
             return
-        self._update_brightness()
-        self.px.fill(color)
-        self.px.show()
+        payload = build_solid_grb(self.width, self.height, self.strips_used, color)
+        send_frame(ser, payload, self._get_brightness())
 
     # -------------------- thread loop --------------------
     def run(self) -> None:  # pragma: no cover - contains time-based loop
-        if not self.px:
-            # Hardware not present — idle until asked to stop
+        ser = self._ensure_serial()
+        if not ser:
             while not self.stop_evt.is_set():
                 time.sleep(0.5)
             return
+
+        ser.reset_input_buffer()
+        t0 = time.time()
+        while time.time() - t0 < 2.0 and not self.stop_evt.is_set():
+            line = ser.readline().decode("utf-8", "ignore").strip()
+            if line:
+                logging.info("Teensy: %s", line)
+                if line == "RDY":
+                    break
 
         try:
             while not self.stop_evt.is_set():
@@ -111,7 +180,7 @@ class LEDThread(threading.Thread):
                     ):
                         if self.stop_evt.is_set() or self._current_pattern() != "rgb_cycle":
                             break
-                        print(f"[LED] {name}")
+                        logging.debug("[LED] %s", name)
                         self._set_all(col)
                         t0 = time.time()
                         while (
@@ -127,3 +196,5 @@ class LEDThread(threading.Thread):
                 self._set_all((0, 0, 0))
             except Exception:
                 pass
+            self._close_serial()
+
