@@ -1,45 +1,70 @@
 import threading
 
-from app.led_controller import LEDThread
+from app.led_controller import LEDThread, build_solid_grb
 
 
-def test_set_all_updates_pixels_and_shows():
-    thread = LEDThread.__new__(LEDThread)
+class DummySerial:
+    def __init__(self):
+        self.writes = []
+        self.timeout = 0.2
 
-    class DummyPixel:
-        def __init__(self):
-            self.fills = []
-            self.show_count = 0
+    def write(self, data: bytes) -> None:
+        self.writes.append(data)
 
-        def fill(self, color):
-            self.fills.append(color)
+    def flush(self) -> None:
+        pass
 
-        def show(self):
-            self.show_count += 1
+    def reset_input_buffer(self) -> None:  # pragma: no cover - simple stub
+        pass
 
-    thread.px = DummyPixel()
-    thread.get_settings = lambda: {"led": {"brightness": 20}}
+    def readline(self) -> bytes:  # pragma: no cover - simple stub
+        return b""
+
+    def close(self) -> None:  # pragma: no cover - simple stub
+        pass
+
+
+def test_set_all_sends_frame() -> None:
+    ser = DummySerial()
+    thread = LEDThread(
+        stop_evt=threading.Event(),
+        get_settings=lambda: {"led": {"brightness": 20}},
+        width=1,
+        height=1,
+        strips_used=1,
+        ser=ser,
+    )
+
     thread._set_all((1, 2, 3))
 
-    assert thread.px.fills == [(1, 2, 3)]
-    assert thread.px.show_count == 1
+    payload = build_solid_grb(1, 1, 1, (1, 2, 3))
+    expected_hdr = bytes((0xAB, 0xCD, 0xF1, 0x00, 1, 0, 20))
+    assert ser.writes == [expected_hdr + payload]
 
 
-def test_run_clears_on_start_when_stopped():
+def test_run_clears_on_start_when_stopped() -> None:
     stop_evt = threading.Event()
     stop_evt.set()
 
-    class DummyPixel:
+    class DummyThread(LEDThread):
         def __init__(self):
             self.colors = []
-        def fill(self, color):
-            self.colors.append(color)
-        def show(self):
-            pass
+            super().__init__(
+                stop_evt=stop_evt,
+                get_settings=lambda: {"led": {"brightness": 0}},
+                width=1,
+                height=1,
+                strips_used=1,
+                ser=DummySerial(),
+            )
 
-    led = LEDThread(stop_evt=stop_evt, get_settings=lambda: {"led": {"brightness": 0}})
-    led.px = DummyPixel()
+        def _set_all(self, color):
+            self.colors.append(color)
+            super()._set_all(color)
+
+    led = DummyThread()
     led.run()
 
     # When stop is set before run, thread should clear strip once
-    assert led.px.colors == [(0, 0, 0)]
+    assert led.colors == [(0, 0, 0)]
+
