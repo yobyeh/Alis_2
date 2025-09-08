@@ -237,10 +237,10 @@ class _Handler(BaseHTTPRequestHandler):
             return
 
         if path.rstrip("/") == "/start":
-            self.server.anim_thread.set_mode("animation")  # type: ignore[attr-defined]
+            self.server.anim_thread.set_mode("test")  # type: ignore[attr-defined]
             self._redirect("/")
         elif path.rstrip("/") == "/stop":
-            self.server.anim_thread.set_mode("static")  # type: ignore[attr-defined]
+            self.server.anim_thread.set_mode("idle")  # type: ignore[attr-defined]
             self._redirect("/")
         elif path.rstrip("/") == "/draw_mode":
             self.server.anim_thread.set_mode("draw")  # type: ignore[attr-defined]

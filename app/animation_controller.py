@@ -6,12 +6,7 @@ import threading
 import time
 from typing import Callable, List, Set, Tuple, Optional
 
-try:  # pragma: no cover - serial may not be installed
-    import serial
-except Exception:  # pragma: no cover
-    serial = None  # type: ignore[assignment]
-
-from app.led_controller import find_teensy, send_frame
+from app.led_controller import LEDThread
 
 Color = Tuple[int, int, int]
 
@@ -21,30 +16,27 @@ class AnimationControllerThread(threading.Thread):
 
     Modes
     -----
-    static:    Framebuffer is sent as-is.
-    animation: Simple RGB cycling demo.
-    draw:      External callers update pixels via update_pixel(...).
+    idle:    Framebuffer is black and no updates are pushed.
+    test:    Simple RGB cycling demo.
+    draw:    External callers update pixels via update_pixel(...).
     """
 
     def __init__(
         self,
         stop_evt: threading.Event,
+        led_thread: LEDThread,
         width: int = 16,
         height: int = 16,
-        port: Optional[str] = None,
-        brightness: int = 30,
         fps: float = 20.0,
     ) -> None:
         super().__init__(daemon=True)
         self.stop_evt = stop_evt
+        self.led_thread = led_thread
         self.width = width
         self.height = height
-        self.port = port or find_teensy()
-        self.brightness = brightness
         self.fps = max(1.0, float(fps))
 
-        self.ser: Optional[serial.Serial] = None
-        self.mode = "static"         # "static" | "animation" | "draw"
+        self.mode = "idle"          # "idle" | "test" | "draw"
         self.send_to_led = True      # can be toggled if you want preview-only
         self.send_to_web = True      # not used by the new web_server (it polls)
 
@@ -63,9 +55,12 @@ class AnimationControllerThread(threading.Thread):
     # ------------------------------------------------------------------
     # Public API used by web_server.py
     def set_mode(self, mode: str) -> None:
-        """Set operating mode: 'static', 'animation', or 'draw'."""
-        if mode in {"static", "animation", "draw"}:
+        """Set operating mode: 'idle', 'test', or 'draw'."""
+        if mode in {"idle", "test", "draw"}:
             self.mode = mode
+            if mode == "idle":
+                self.clear_panel()
+                self.flush()
 
     def register_client(self, sender: Callable[[str], None]) -> None:
         """Legacy JSON push registration (web_server now polls)."""
@@ -117,19 +112,6 @@ class AnimationControllerThread(threading.Thread):
                     i += 3
             return bytes(out), self.width, self.height
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    def _ensure_serial(self) -> Optional[serial.Serial]:
-        if self.ser:
-            return self.ser
-        if serial is None:  # pragma: no cover - pyserial missing
-            return None
-        try:
-            self.ser = serial.Serial(self.port, 2_000_000, timeout=0.2)
-        except Exception:
-            self.ser = None
-        return self.ser
-
     def _frame_bytes_grb(self) -> bytes:
         """Build GRB bytes for Teensy."""
         with self._frame_lock:
@@ -157,7 +139,7 @@ class AnimationControllerThread(threading.Thread):
             except Exception:
                 self._web_clients.discard(sender)
 
-    def _animate(self, t: float) -> None:
+    def _test_pattern(self, t: float) -> None:
         """Very small demo animation cycling primary colors."""
         colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
         col = colors[int(t) % 3]
@@ -177,19 +159,18 @@ class AnimationControllerThread(threading.Thread):
             now = time.time()
 
             # Update animation if requested
-            if self.mode == "animation":
-                self._animate(now)
+            if self.mode == "test":
+                self._test_pattern(now)
 
             # Push to LEDs if allowed or if explicitly flushed
             push_due = now >= next_tick or self._dirty_evt.is_set()
             if self.send_to_led and push_due:
-                ser = self._ensure_serial()
-                if ser:
+                if self.mode != "idle" or self._dirty_evt.is_set():
                     try:
                         payload = self._frame_bytes_grb()
-                        send_frame(ser, payload, brightness=self.brightness)
+                        self.led_thread.send_raw_frame(payload)
                     except Exception:
-                        pass  # keep running if serial hiccups
+                        pass  # keep running if led thread hiccups
                 self._dirty_evt.clear()
                 next_tick = now + frame_period
 
