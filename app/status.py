@@ -1,15 +1,19 @@
 # app/status.py
 import subprocess
 import time
-from typing import Dict, Tuple, List, Optional
+import socket
+from typing import Dict, Tuple, List, Optional, Any
 
 class StatusProvider:
-    def __init__(self, settings: Dict):
+    def __init__(self, settings: Dict, web_port: int = 0):
         self.settings = settings
+        self.web_port = web_port
         self._last_wifi_check = 0
         self._wifi_cached = (False, "")
+        self._last_ip_check = 0.0
+        self._ip_cached: str = ""
 
-    def snapshot(self) -> Dict[str, List[Tuple[str, Optional[str]]]]:
+    def snapshot(self) -> Dict[str, Any]:
         now = time.time()
         if now - self._last_wifi_check > 2:
             try:
@@ -31,10 +35,31 @@ class StatusProvider:
         if self.settings.get("system", {}).get("restart_required"):
             bar_right.append(("↻", None))
 
+        footer = ""
+        if self.web_port:
+            if now - self._last_ip_check > 60 or not self._ip_cached:
+                try:
+                    self._ip_cached = self._get_local_ip()
+                except Exception:
+                    self._ip_cached = ""
+                self._last_ip_check = now
+            if self._ip_cached:
+                footer = f"http://{self._ip_cached}:{self.web_port}"
+
         return {
             "time": time.strftime("%H:%M"),
             "wifi": bar_right,
+            "footer": footer,
         }
+
+    def _get_local_ip(self) -> str:
+        """Best-effort local IP address for constructing a URL."""
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+        finally:
+            s.close()
 
     def _read_wifi(self) -> Tuple[bool, str]:
         """Read Wi-Fi status from the operating system.

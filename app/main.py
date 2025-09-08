@@ -5,6 +5,7 @@
 # - Starts DisplayThread (reads rotation ONCE at startup, honors brightness/sleep/screensaver)
 # - Starts ButtonsThread (UP/DOWN/SELECT/BACK -> controller events)
 # - Shows "restart required" indicator when a restart-only setting (e.g., rotation) changes
+# - Starts WebServerThread (HTTP server for LED control)
 
 import json
 import os
@@ -17,6 +18,7 @@ from app.menu_engine import MenuController
 from app.status import StatusProvider
 from app.storage import load_json, save_json_atomic
 from app.led_controller import LEDThread
+from app.web_server import WebServerThread
 
 # Paths are relative to the project root (where you run Alis_Script.sh)
 MENU_PATH     = "menu.json"
@@ -25,7 +27,7 @@ SETTINGS_PATH = "settings.json"
 # Default settings applied if settings.json is missing/corrupt
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "display": {
-        "rotation": 270,              # read once at startup
+        "rotation": 180,              # read once at startup
         "brightness": 100,           # 0..100, applied continuously
         "sleep_seconds": 120,        # backlight off after idle
         "screensaver_enabled": False
@@ -88,19 +90,20 @@ def main():
     # Create stop event and LED thread early so menu actions can reference it
     stop_evt = threading.Event()
     led_thread = LEDThread(stop_evt=stop_evt, get_settings=get_settings)
+    web_thread = WebServerThread(stop_evt=stop_evt, led_thread=led_thread)
 
     # Menu action handler
     def action_handler(name: str) -> None:
         if name == "led.rgb_cycle":
-            led_thread.set_pattern("rgb_cycle")
+            led_thread.start_test()
         elif name == "led.stop":
-            led_thread.set_pattern("off")
+            led_thread.stop_test()
         else:
             print(f"[Menu] action requested: {name}")
 
     # 4) Create controller (pure logic) and status provider (for top bar)
     controller = MenuController(menu_spec, settings, save_cb=save_cb, action_cb=action_handler)
-    status     = StatusProvider(settings)   # pass settings so it can expose "↻" when needed
+    status     = StatusProvider(settings, web_port=web_thread.port)   # pass settings so it can expose "↻" when needed
 
     # 5) Helpers for the display thread to fetch current theme
     def get_theme() -> Dict[str, str]:
@@ -129,6 +132,7 @@ def main():
         disp_thread.start()
         btn_thread.start()
         led_thread.start()
+        web_thread.start()
         # Main thread can host future supervisors/services
         while True:
             time.sleep(1.0)
@@ -140,6 +144,7 @@ def main():
         btn_thread.join(timeout=2.0)
         disp_thread.join(timeout=3.0)
         led_thread.join(timeout=2.0)
+        web_thread.join(timeout=2.0)
         # Ensure final settings are flushed
         save_json_atomic(SETTINGS_PATH, settings)
         print("[Alis] Stopped.")

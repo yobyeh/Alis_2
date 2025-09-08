@@ -68,3 +68,21 @@ def test_run_clears_on_start_when_stopped() -> None:
     # When stop is set before run, thread should clear strip once
     assert led.colors == [(0, 0, 0)]
 
+
+def test_start_stop_test_wrappers() -> None:
+    stop_evt = threading.Event()
+    thread = LEDThread(
+        stop_evt=stop_evt,
+        get_settings=lambda: {"led": {"brightness": 0}},
+        width=1,
+        height=1,
+        strips_used=1,
+        ser=DummySerial(),
+    )
+
+    assert thread._current_pattern() == "off"
+    thread.start_test()
+    assert thread._current_pattern() == "rgb_cycle"
+    thread.stop_test()
+    assert thread._current_pattern() == "off"
+
