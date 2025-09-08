@@ -2,8 +2,13 @@ import subprocess
 from typing import Dict, List
 
 
+EXPECTED_OK = (
+    "Already in use",
+    "AlreadyExists",
+    "already registered",
+)
+
 def _run(cmd: List[str]) -> bool:
-    """Run a command, retrying with sudo if needed."""
     try:
         subprocess.run(cmd, check=True, capture_output=True)
         return True
@@ -12,6 +17,9 @@ def _run(cmd: List[str]) -> bool:
         return False
     except subprocess.CalledProcessError as exc:
         err = (exc.stderr or b"").decode().strip()
+        # Treat harmless idempotent cases as success
+        if any(s.lower() in err.lower() for s in EXPECTED_OK):
+            return True
         try:
             subprocess.run(["sudo", *cmd], check=True, capture_output=True)
             return True
@@ -20,6 +28,8 @@ def _run(cmd: List[str]) -> bool:
             return False
         except subprocess.CalledProcessError as exc2:
             err2 = (exc2.stderr or b"").decode().strip()
+            if any(s.lower() in err2.lower() for s in EXPECTED_OK):
+                return True
             print(f"[Bluetooth] {' '.join(cmd)} failed: {err or err2}")
             return False
 
@@ -70,7 +80,7 @@ def list_paired_devices() -> List[str]:
         return []
     devices = []
     for line in out.splitlines():
-        parts = line.split(maxsplit=1)
-        if parts:
-            devices.append(parts[0])
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] == "Device":
+            devices.append(parts[1])  # the MAC address
     return devices
