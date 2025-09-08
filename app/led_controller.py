@@ -99,7 +99,8 @@ class LEDThread(threading.Thread):
         self.strips_used = strips_used
         self.default_brightness = brightness
         self.hold_sec = hold_sec
-        self._pattern = "rgb_cycle"   # Option A: start in rgb_cycle
+        # Default to LEDs off; explicit actions can start test patterns
+        self._pattern = "off"
         self._pattern_lock = threading.Lock()
 
         self.port = port or find_teensy()
@@ -111,6 +112,16 @@ class LEDThread(threading.Thread):
 
         with self._pattern_lock:
             self._pattern = name
+
+    def start_test(self) -> None:
+        """Convenience wrapper to start the RGB test pattern."""
+
+        self.set_pattern("rgb_cycle")
+
+    def stop_test(self) -> None:
+        """Stop any active test pattern and turn LEDs off."""
+
+        self.set_pattern("off")
 
     # ------------------ internal helpers ------------------
     def _current_pattern(self) -> str:

@@ -43,9 +43,12 @@ def render_menu(canvas, view, status, theme):
     row_h = 26
     padding = 8
 
+    footer = status.get("footer", "")
+    footer_h = 18 if footer else 0
+
     # Determine how many rows fit on the screen and which slice of items to draw
     items = view.get("items", [])
-    max_rows = max(1, (H - row_y) // row_h)
+    max_rows = max(1, (H - footer_h - row_y) // row_h)
     focus_idx = next((i for i, it in enumerate(items) if it.get("focused")), 0)
     top_idx = max(0, min(focus_idx - max_rows + 1, len(items) - max_rows))
     visible = items[top_idx : top_idx + max_rows]
@@ -76,4 +79,10 @@ def render_menu(canvas, view, status, theme):
             tw = d.textlength(value, font=font_row)
             d.text((W - padding - 6 - tw, row_y), value, fill=color, font=font_row)
         row_y += row_h
+
+    if footer:
+        d.line((0, H - footer_h, W, H - footer_h), fill="#404040")
+        font_footer = load_font(14)
+        tw = d.textlength(footer, font=font_footer)
+        d.text(((W - tw) // 2, H - footer_h + 2), footer, fill=fg, font=font_footer)
 
