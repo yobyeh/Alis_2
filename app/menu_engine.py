@@ -24,6 +24,7 @@ LIVE_BINDINGS = {
     "display.brightness",
     "display.sleep_seconds",
     "display.screensaver_enabled",
+    "led.brightness",
     # Wire more here as you implement them
 }
 
