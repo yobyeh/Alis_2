@@ -16,6 +16,11 @@
         },
         {
           "type": "screen-link",
+          "label": "Test",
+          "to": "test"
+        },
+        {
+          "type": "screen-link",
           "label": "Settings",
           "to": "settings"
         },
@@ -35,16 +40,11 @@
           "label": "Program",
           "binding": "system.program_select",
           "options_source": "programs.list"
-        },
-        {
-          "type": "screen-link",
-          "label": "LED Test",
-          "to": "led-test"
         }
       ]
     },
-    "led-test": {
-      "title": "LED Test",
+    "test": {
+      "title": "Test",
       "items": [
         {
           "type": "action",
