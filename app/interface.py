@@ -59,18 +59,18 @@ def start_interface(settings: dict, shutdown_event: threading.Event, settings_lo
         lcd.Init()
         with settings_lock:
             lcd.bl_DutyCycle(deep_get(settings, ["display", "backlight"], default=100))
-        show_splash(lcd)
+        #show_splash(lcd)
         print("LCD initialized", flush=True)
 
         #setup menu
-        menu = None
+        menu = MenuController()
 
         # Setup buttons with gpiozero
         for name, pin in BTN_PINS.items():
             btn = Button(pin, bounce_time=DEBOUNCE_S)
             buttons[name] = btn
             # Example handlers (could push to a queue or mutate settings)
-            btn.when_pressed = lambda n=name: print(f"{n} pressed", flush=True)
+            btn.when_pressed = lambda n=name:menu.move_pointer(n)
 
         # --- main loop ---
         while not shutdown_event.is_set():
