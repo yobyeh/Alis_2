@@ -13,6 +13,7 @@ def test_screen_brightness_rotates():
     mc = MenuController(menu_spec, settings, lambda s: None)
 
     # Navigate to Settings -> Screen Brightness
+    mc.on_event("DOWN")
     mc.on_event("DOWN")   # focus Settings on home screen
     mc.on_event("SELECT") # enter Settings
     mc.on_event("DOWN")   # move focus to Screen Brightness item
