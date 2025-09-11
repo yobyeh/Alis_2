@@ -105,12 +105,17 @@
           "label": "LEDs"
         },
         {
-          "type": "number",
+          "type": "select",
           "label": "LED Brightness",
           "binding": "led.brightness",
-          "min": 0,
-          "max": 255,
-          "step": 5
+          "options": [
+            0,
+            20,
+            40,
+            60,
+            80,
+            100
+          ]
         },
         {
           "type": "group",
