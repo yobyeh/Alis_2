@@ -12,7 +12,7 @@ class ScreenController:
     #x y x y 
     #recieves: current screen index, current option index, and menu data
     #6 on screen options at 20pt
-    def draw_screen(self, screen, selection, data):
+    def draw_screen(self, screen, selection, menu_data):
         # Swap width and height for portrait orientation
         #background
         img = Image.new("RGB", (self.height, self.width), (0,0,0))  # type: ignore
@@ -26,13 +26,13 @@ class ScreenController:
         #build list of screens starting with home so index is correct
         screen_list = []
         screen_list.append("home")
-        for option in data["home"]:
+        for option in menu_data["home"]:
                 screen_list.append(option)
 
         #header
         draw.rectangle([0, 0, 320, 30], outline=(8, 0, 158), fill=(8, 0, 158), width=1)
         title = "Alis"
-        print("screen controler screen, selection", screen, selection)
+        #print("screen controler screen, selection", screen, selection)
         if screen != 0:
               title = screen_list[screen]
         draw.text((2, 4), title, fill="white", font=font)
@@ -44,17 +44,24 @@ class ScreenController:
         #options
         i = 0
         if screen == 0:
-            for option in data["home"]:
+            for option in menu_data["home"]:
                 draw.text((10, 40 + i * 30), option, fill="white", font=font)
                 #draw.text((250, 40 + i * 30), "Value", fill="white", font=font)
                 i += 1
         else:
             current_screen = screen_list[screen]
             i = 0
-            for option in data["home"][current_screen]:
+            for option in menu_data["home"][current_screen]:
                  draw.text((10, 40 + i * 30), option, fill="white", font=font)
                  i += 1
 
+        #settings
+        if screen_list[screen] == "Settings":
+            i = 0
+            for setting in menu_data["home"]["Settings"]:
+                draw.text((250, 40 + i * 30), "value", fill="white", font=font)
+                i += 1
+             
 
         #selection
         select_start = 35

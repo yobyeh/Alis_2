@@ -23,18 +23,18 @@ class MenuController:
             home_menu.append(0)
         self.pointer_tracker.append(home_menu)
         for screen in self.menu_data["home"]:
-            print(screen)
+            #print(screen)
             curent_screen = []
             #options array
             for options in self.menu_data["home"][screen]:
-                print("--", options)
+                #print("--", options)
                 curent_screen.append(0)
             self.pointer_tracker.append(curent_screen)
-        print(self.pointer_tracker)
+        #print(self.pointer_tracker)
 
     def start_menu(self):
         self.pointer_tracker[0][0] = 1
-        print(self.pointer_tracker)
+        #print(self.pointer_tracker)
 
     def get_frame(self):
         self.change = 0
@@ -53,7 +53,7 @@ class MenuController:
             for option in screen:
                 option_current += 1
                 if self.pointer_tracker[screen_current][option_current] == 1:
-                    print("get pointer", screen_current, option_current)
+                    #print("get pointer", screen_current, option_current)
                     return screen_current, option_current
             option_current = -1
         print("pointer location error")
@@ -90,8 +90,7 @@ class MenuController:
             case _:
                 print(f"Unknown direction: {direction}")
 
-        # Set new pointer
-        print(self.pointer_tracker)
+        #print(self.pointer_tracker)
 
     def load_menu(self):
         if self.menu_path.exists():

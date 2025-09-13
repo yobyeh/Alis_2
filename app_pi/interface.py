@@ -45,7 +45,7 @@ def show_splash(lcd, path="assets/splash.png"):
         splash = Image.open(path).convert("RGB")
         splash = orient_image(splash, lcd)
         lcd.ShowImage(splash)
-        time.sleep(.5)
+        time.sleep(2)
     except Exception as e:
         print("Splash skipped:", e, flush=True)
 

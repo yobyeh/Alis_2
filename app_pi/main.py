@@ -7,18 +7,31 @@ import time
 from interface import start_interface  # def start_interface(settings: dict, shutdown_event, lock)
 
 MENU_PATH = Path("data/menu_data.json")
-DEFAULT_SETTINGS_PATH = Path("data/default_settings.json")
+#DEFAULT_SETTINGS_PATH = Path("data/default_settings.json")
 SETTINGS_PATH = Path("data/settings.json")
 settings_lock = threading.Lock()
 shutdown_event = threading.Event()
 
 def load_settings() -> dict:
+    menu_data = []
+    #find menu data
     if not SETTINGS_PATH.exists():
-        if DEFAULT_SETTINGS_PATH.exists():
-            SETTINGS_PATH.write_text(DEFAULT_SETTINGS_PATH.read_text())
+        if MENU_PATH.exists():
+            with open(MENU_PATH, "r") as f:
+                menu_data = json.load(f)
         else:
-            raise FileNotFoundError(f"{DEFAULT_SETTINGS_PATH} not found")
-    return json.loads(SETTINGS_PATH.read_text())
+            raise FileNotFoundError(f"Menu file not found: {MENU_PATH}")        
+        #build new settings file with defaults
+        new_settings = {}
+        for setting, setting_data in menu_data["home"]["Settings"].items():
+            default_value = setting_data.get("default")
+            #print(setting, default_value, flush=True)
+            new_settings.update({setting: default_value})
+        #print(new_settings, flush=True)
+        return new_settings
+        #SETTINGS_PATH.write_text(new_settings)
+    else:    
+        return json.loads(SETTINGS_PATH.read_text())
 
 def save_settings():
     try:
@@ -36,7 +49,7 @@ def main():
 
     global current_settings
     current_settings = load_settings()
-    print("Overlord starting...", flush=True)
+    print("Alis starting...", flush=True)
 
     # Start NON-daemon thread and pass all expected args
     t = threading.Thread(
@@ -59,7 +72,7 @@ def main():
         shutdown_event.set()
         t.join(timeout=5)
         save_settings()
-        print("Overlord exiting.", flush=True)
+        print("main exiting.", flush=True)
 
 if __name__ == "__main__":
     main()
