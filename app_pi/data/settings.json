@@ -1,0 +1,22 @@
+{
+  "display": {
+    "brightness": 50,
+    "sleep_seconds": 120,
+    "screensaver_enabled": false
+  },
+  "led": {
+    "brightness": 20
+  },
+  "ui": {
+    "anim_speed": 5
+  },
+  "system": {
+    "program_select": "Default",
+    "auto_shutdown_min": 0,
+    "restart_required": false
+  },
+  "network": {
+    "wifi_connected": false,
+    "ssid": ""
+  }
+}

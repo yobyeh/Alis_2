@@ -1,0 +1,80 @@
+{
+    "home":{
+        "shows":{
+            "Dummy":0
+        },
+        "settings":{
+            "LED Brightness":{
+                "link":"",
+                "action":"value",
+                "default":60,
+                "options":[
+                    20,
+                    40,
+                    60,
+                    80,
+                    100
+                ]
+            },
+            "Screen Brightness":{
+                "link":"",
+                "action":"value",
+                "default":60,
+                "options":[
+                    20,
+                    40,
+                    60,
+                    80,
+                    100
+                ]
+            },
+            "Sleep Timer":{
+                "link":"",
+                "action":"value",
+                "default":60,
+                "options":[
+                    20,
+                    40,
+                    60,
+                    80,
+                    100
+                ]
+            }
+        },
+        "test":{
+            "RGB Test":{
+                "link":"",
+                "action":"start_test",
+                "default":0,
+                "options":[ 
+                ]
+            },
+            "Stop":{
+                "link":"",
+                "action":"stop_test",
+                "default":0,
+                "options":[ 
+                ]
+            }
+        },
+        "Shutdown":{
+            "shutdown":{
+                "link":"",
+                "action":"shutdown",
+                "default":0,
+                "options":[ 
+                ]
+            }
+        }
+
+    }
+
+
+
+
+
+
+
+
+
+}
