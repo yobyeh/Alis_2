@@ -8,12 +8,10 @@ class ScreenController:
         self.width = width
         self.height = height
 
-
+    #240 x 320
     #x y x y 
     #recieves: current screen index, current option index, and menu data
-    #
     #6 on screen options at 20pt
-    #room for bottom indicator
     def draw_screen(self, screen, selection, data):
         # Swap width and height for portrait orientation
         #background
@@ -30,7 +28,6 @@ class ScreenController:
         screen_list.append("home")
         for option in data["home"]:
                 screen_list.append(option)
-        print(screen_list)
 
         #header
         draw.rectangle([0, 0, 320, 30], outline=(8, 0, 158), fill=(8, 0, 158), width=1)
@@ -39,13 +36,17 @@ class ScreenController:
         if screen != 0:
               title = screen_list[screen]
         draw.text((2, 4), title, fill="white", font=font)
-        
-        #options and values
+
+        #footer
+        draw.rectangle([0, 210, 320, 240], outline=(8, 0, 158), fill=(8, 0, 50), width=1)
+        draw.text((10, 214), "Address:", fill="white", font=font)
+
+        #options
         i = 0
         if screen == 0:
             for option in data["home"]:
                 draw.text((10, 40 + i * 30), option, fill="white", font=font)
-                draw.text((250, 40 + i * 30), "Value", fill="white", font=font)
+                #draw.text((250, 40 + i * 30), "Value", fill="white", font=font)
                 i += 1
         else:
             current_screen = screen_list[screen]
