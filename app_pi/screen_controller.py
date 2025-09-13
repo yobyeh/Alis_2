@@ -25,19 +25,35 @@ class ScreenController:
         except IOError:
             font = ImageFont.load_default()
 
+        #build list of screens starting with home so index is correct
+        screen_list = []
+        screen_list.append("home")
+        for option in data["home"]:
+                screen_list.append(option)
+        print(screen_list)
+
         #header
         draw.rectangle([0, 0, 320, 30], outline=(8, 0, 158), fill=(8, 0, 158), width=1)
         title = "Alis"
+        print("screen controler screen, selection", screen, selection)
         if screen != 0:
-            pass
+              title = screen_list[screen]
         draw.text((2, 4), title, fill="white", font=font)
         
         #options and values
         i = 0
-        for option in data["home"]:
-            draw.text((10, 40 + i * 30), option, fill="white", font=font)
-            draw.text((250, 40 + i * 30), "Value", fill="white", font=font)
-            i += 1
+        if screen == 0:
+            for option in data["home"]:
+                draw.text((10, 40 + i * 30), option, fill="white", font=font)
+                draw.text((250, 40 + i * 30), "Value", fill="white", font=font)
+                i += 1
+        else:
+            current_screen = screen_list[screen]
+            i = 0
+            for option in data["home"][current_screen]:
+                 draw.text((10, 40 + i * 30), option, fill="white", font=font)
+                 i += 1
+
 
         #selection
         select_start = 35

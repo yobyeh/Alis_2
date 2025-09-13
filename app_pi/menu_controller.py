@@ -53,6 +53,7 @@ class MenuController:
             for option in screen:
                 option_current += 1
                 if self.pointer_tracker[screen_current][option_current] == 1:
+                    print("get pointer", screen_current, option_current)
                     return screen_current, option_current
             option_current = -1
         print("pointer location error")
