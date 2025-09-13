@@ -25,7 +25,7 @@ BTN_PINS = {"UP": 17, "DOWN": 22, "SELECT": 23, "BACK": 24}
 DEBOUNCE_S = 0.05
 
 #lcd settings
-RENDER_INTERVAL = 0.5  # seconds
+RENDER_INTERVAL = 0.1  # seconds
 ROTATION = 270          # degrees, read once at startup
 
 def draw_frame():
@@ -50,7 +50,7 @@ def show_splash(lcd, path="assets/splash.png"):
         print("Splash skipped:", e, flush=True)
 
 def show_menu(lcd, menu, screen):
-        lcd.ShowImage(orient_image(menu.get_frame(),lcd))
+        lcd.ShowImage(menu.get_frame(),lcd)
 
 def start_interface(settings: dict, shutdown_event: threading.Event, settings_lock: threading.Lock):
     print("starting interface", flush=True)

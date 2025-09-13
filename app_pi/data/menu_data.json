@@ -1,9 +1,9 @@
 {
     "home":{
-        "shows":{
+        "Shows":{
             "Dummy":0
         },
-        "settings":{
+        "Settings":{
             "LED Brightness":{
                 "link":"",
                 "action":"value",
@@ -41,7 +41,7 @@
                 ]
             }
         },
-        "test":{
+        "Test":{
             "RGB Test":{
                 "link":"",
                 "action":"start_test",

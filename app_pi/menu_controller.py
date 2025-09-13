@@ -39,7 +39,7 @@ class MenuController:
     def get_frame(self):
         self.change = 0
         screen_idx, option_idx = self.get_pointer_location()
-        img = self.screen_controller.draw_screen(screen_idx, option_idx)
+        img = self.screen_controller.draw_screen(screen_idx, option_idx, self.menu_data)
         return img
 
     def get_change(self):
