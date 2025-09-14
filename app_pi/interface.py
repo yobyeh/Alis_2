@@ -6,6 +6,8 @@
 # Requires:
 #   - driver/LCD_2inch.py (Waveshare)
 #   - gpiozero + lgpio backend (GPIOZERO_PIN_FACTORY=lgpio)
+
+# owns the screen controller,menu controller, and lcd
 import time
 import threading
 from PIL import Image
@@ -16,6 +18,7 @@ from utils import deep_get
 import logging
 from menu_controller import MenuController
 from screen_controller import ScreenController
+import multiprocessing
 
 # Quiet all PIL logs:
 logging.getLogger("PIL").setLevel(logging.WARNING)
@@ -49,10 +52,10 @@ def show_splash(lcd, path="assets/splash.png"):
     except Exception as e:
         print("Splash skipped:", e, flush=True)
 
-def show_menu(lcd, menu, screen):
+def show_menu(lcd, menu, screen): 
         lcd.ShowImage(menu.get_frame(),lcd)
 
-def start_interface(settings: dict, shutdown_event: threading.Event, settings_lock: threading.Lock):
+def start_interface(settings: dict, shutdown_event: threading.Event, settings_lock: threading.Lock, interface_que:multiprocessing.Queue, settings_changed: threading.Event):
     print("starting interface", flush=True)
 
     lcd = None
@@ -67,8 +70,8 @@ def start_interface(settings: dict, shutdown_event: threading.Event, settings_lo
         print("LCD initialized", flush=True)
 
         #setup menu
-        screen = ScreenController(lcd.width, lcd.height)
-        menu = MenuController(screen)
+        screen = ScreenController(lcd.width, lcd.height, settings, settings_lock)
+        menu = MenuController(screen, settings, settings_lock, settings_changed)
         menu.start_menu()
 
         # Setup buttons with gpiozero
@@ -81,7 +84,7 @@ def start_interface(settings: dict, shutdown_event: threading.Event, settings_lo
         # --- main loop ---
         while not shutdown_event.is_set():
 
-            #draw the menu on screen
+            #draw the menu on screen if button flag
             if menu.get_change() == 1:
                 show_menu(lcd, menu, screen)
             

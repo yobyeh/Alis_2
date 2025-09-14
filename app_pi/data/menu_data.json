@@ -45,13 +45,13 @@
             "Save Settings":{
                 "link":"",
                 "action":"save",
-                "default":0,
+                "default":-1,
                 "options":[]
             },
             "Reset Settings":{
                 "link":"",
                 "action":"default",
-                "default":0,
+                "default":-1,
                 "options":[]
             }
         },

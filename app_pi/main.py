@@ -1,8 +1,12 @@
+# main.py
+# owns interface, 
+
 import json
 import threading
 import logging
 from pathlib import Path
 import time
+import multiprocessing
 
 from interface import start_interface  # def start_interface(settings: dict, shutdown_event, lock)
 
@@ -10,7 +14,11 @@ MENU_PATH = Path("data/menu_data.json")
 #DEFAULT_SETTINGS_PATH = Path("data/default_settings.json")
 SETTINGS_PATH = Path("data/settings.json")
 settings_lock = threading.Lock()
+settings_changed = threading.Event()
 shutdown_event = threading.Event()
+
+#thread communication
+interface_que = multiprocessing.Queue()
 
 def load_settings() -> dict:
     menu_data = []
@@ -26,11 +34,12 @@ def load_settings() -> dict:
         for setting, setting_data in menu_data["home"]["Settings"].items():
             default_value = setting_data.get("default")
             #print(setting, default_value, flush=True)
-            new_settings.update({setting: default_value})
+            if default_value != -1:
+                new_settings.update({setting: default_value})
         #print(new_settings, flush=True)
+        SETTINGS_PATH.write_text(json.dumps(new_settings))
         return new_settings
-        #SETTINGS_PATH.write_text(new_settings)
-    else:    
+    else:
         return json.loads(SETTINGS_PATH.read_text())
 
 def save_settings():
@@ -46,7 +55,7 @@ def main():
         level=logging.DEBUG,
         format="%(asctime)s %(levelname)s [%(threadName)s] %(message)s"
     )
-
+    global interface_que
     global current_settings
     current_settings = load_settings()
     print("Alis starting...", flush=True)
@@ -54,7 +63,7 @@ def main():
     # Start NON-daemon thread and pass all expected args
     t = threading.Thread(
         target=start_interface,
-        args=(current_settings, shutdown_event, settings_lock),
+        args=(current_settings, shutdown_event, settings_lock, interface_que, settings_changed),
         name="InterfaceThread",
         daemon=False,
     )

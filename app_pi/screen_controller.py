@@ -1,12 +1,15 @@
 #screen_controller.py
 
 from PIL import Image, ImageDraw, ImageFont
+import threading
 
 class ScreenController:
 
-    def __init__(self, width, height):
+    def __init__(self, width, height, currnet_settings, settings_lock):
         self.width = width
         self.height = height
+        self.settings_lock = settings_lock
+        self.current_settings = currnet_settings
 
     #240 x 320
     #x y x y 
@@ -55,13 +58,16 @@ class ScreenController:
                  draw.text((10, 40 + i * 30), option, fill="white", font=font)
                  i += 1
 
-        #settings
+        #values
+        self.settings_lock.acquire()
         if screen_list[screen] == "Settings":
             i = 0
-            for setting in menu_data["home"]["Settings"]:
-                draw.text((250, 40 + i * 30), "value", fill="white", font=font)
+            for key, value in self.current_settings.items():
+                #-1 is no default value
+                if value != -1:
+                    draw.text((250, 40 + i * 30), str(value), fill="white", font=font)
                 i += 1
-             
+        self.settings_lock.release()    
 
         #selection
         select_start = 35

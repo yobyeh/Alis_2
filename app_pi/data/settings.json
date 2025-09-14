@@ -1,6 +1,7 @@
 {
-  "LED Brightness": 60,
-  "Screen Brightness": 60,
-  "Sleep Timer": 120,
-  "Reset Settings": 120
+  "LED Brightness": 100,
+  "Screen Brightness": 80,
+  "Sleep Timer": 60,
+  "Save Settings": 0,
+  "Reset Settings": 0
 }
