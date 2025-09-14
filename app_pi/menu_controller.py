@@ -126,7 +126,7 @@ class MenuController:
                 # Rotate to next value
                 next_idx = (idx + 1) % len(available_values)
                 self.current_settings[setting_name] = available_values[next_idx]
-                print(self.current_settings)
+                self.settings_changed.set()
             else:
                 # Handle other actions (e.g., save, reset)
                 pass

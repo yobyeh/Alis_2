@@ -55,7 +55,7 @@ def show_splash(lcd, path="assets/splash.png"):
 def show_menu(lcd, menu, screen): 
         lcd.ShowImage(menu.get_frame(),lcd)
 
-def start_interface(settings: dict, shutdown_event: threading.Event, settings_lock: threading.Lock, interface_que:multiprocessing.Queue, settings_changed: threading.Event):
+def start_interface(current_settings: dict, shutdown_event: threading.Event, settings_lock: threading.Lock, interface_que:multiprocessing.Queue, settings_changed: threading.Event):
     print("starting interface", flush=True)
 
     lcd = None
@@ -65,13 +65,13 @@ def start_interface(settings: dict, shutdown_event: threading.Event, settings_lo
         lcd = LCD_2inch()
         lcd.Init()
         with settings_lock:
-            lcd.bl_DutyCycle(deep_get(settings, ["display", "backlight"], default=100))
+            lcd.bl_DutyCycle(current_settings["Screen Brightness"])
         show_splash(lcd)
         print("LCD initialized", flush=True)
 
         #setup menu
-        screen = ScreenController(lcd.width, lcd.height, settings, settings_lock)
-        menu = MenuController(screen, settings, settings_lock, settings_changed)
+        screen = ScreenController(lcd.width, lcd.height, current_settings, settings_lock)
+        menu = MenuController(screen, current_settings, settings_lock, settings_changed)
         menu.start_menu()
 
         # Setup buttons with gpiozero
