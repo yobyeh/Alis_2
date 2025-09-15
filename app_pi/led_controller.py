@@ -1,126 +1,140 @@
 # app/led_controller.py
-# LED controller using a Teensy board over serial
-
+# Minimal LED controller thread:
+# - Consumes frames from a multiprocessing.Queue
+# - Each item is either:
+#       bytes (GRB triplets for all pixels)
+#       or (bytes, Optional[int]) to override brightness per frame
+# - Sends frames to Teensy using a tiny header
+# - Exits cleanly when SENTINEL (None) is received
+#
+# In main/shutdown, enqueue the sentinel to unblock and stop:
+#   frame_queue.put_nowait(SENTINEL)  # SENTINEL == None
 
 from __future__ import annotations
 
 import logging
 import threading
 import time
-from typing import Any, Callable, Optional, Tuple
+from typing import Optional, Tuple, Any, Union
 
-try:  # pragma: no cover - serial may not be installed in test env
+try:
     import serial
     from serial.tools import list_ports
-except Exception:  # pragma: no cover - serial fallback
-    serial = None  # type: ignore[assignment]
-    list_ports = None  # type: ignore[assignment]
+except Exception:
+    serial = None  # type: ignore
+    list_ports = None  # type: ignore
 
+# ---------------- Types & Sentinel ----------------
+FramePayload = bytes
+FrameItem = Union[FramePayload, Tuple[FramePayload, Optional[int]], None]
+SENTINEL = None  # safe, picklable for multiprocessing.Queue
 
 Color = Tuple[int, int, int]
 
 
-# ---------------------------------------------------------------------------
-# Helper functions mirroring the standalone script
-
+# ---------------- Utilities ----------------
 def find_teensy(default: str = "/dev/ttyACM0") -> str:
-    """Return the serial port of a connected Teensy if available."""
-
-    if not list_ports:  # pragma: no cover - only when pyserial missing
+    """Return the serial port of a connected Teensy, or fallback to default."""
+    if not list_ports:
         return default
     for p in list_ports.comports():
-        desc = (p.description or "") + " " + (p.manufacturer or "")
+        desc = f"{p.description or ''} {p.manufacturer or ''}"
         if "Teensy" in desc or "Teensyduino" in desc:
             return p.device
     return default
 
 
-def build_solid_grb(w: int, h: int, su: int, rgb: Color) -> bytes:
-    """Return a GRB payload filling the whole panel with ``rgb``."""
-
-    r, g, b = rgb
-    trip = bytes((g & 0xFF, r & 0xFF, b & 0xFF))  # GRB order
-    return trip * (w * h * su)
+def _clamp_byte(x: int) -> int:
+    return 0 if x < 0 else 255 if x > 255 else x
 
 
-def send_frame(ser: Any, payload_grb: bytes, brightness: int) -> None:
-    """Send a frame payload to ``ser`` using the Teensy framing protocol."""
-
-    num = len(payload_grb) // 3
-    hdr = bytes(
-        (0xAB, 0xCD, 0xF1, 0x00, num & 0xFF, (num >> 8) & 0xFF, brightness & 0xFF)
-    )
-    ser.write(hdr + payload_grb)
+def _send_frame(ser: Any, payload_grb: bytes, brightness: int) -> None:
+    """Send a single frame to the Teensy using a minimal header."""
+    num_pixels = len(payload_grb) // 3
+    brightness = _clamp_byte(brightness)
+    # Header: 0xAB 0xCD 0xF1 0x00 [num_lo] [num_hi] [brightness]
+    hdr = bytes((0xAB, 0xCD, 0xF1, 0x00, num_pixels & 0xFF, (num_pixels >> 8) & 0xFF, brightness))
+    ser.write(hdr)
+    ser.write(payload_grb)
     ser.flush()
-    ser.timeout = 2
-    # read optional acknowledgement line
-    try:
-        line = ser.readline().decode("utf-8", "ignore").strip()
-        if line:
-            logging.info("Teensy: %s", line)
-    except Exception:
-        pass
 
 
-# ---------------------------------------------------------------------------
-# Thread implementation
+# ---------------- Thread ----------------
+class LEDController(threading.Thread):
+    """
+    Minimal LED controller thread.
 
+    Args:
+        stop_evt: threading.Event used to request shutdown.
+        frame_queue: multiprocessing.Queue[FrameItem] — frames to display or SENTINEL to stop.
+        current_settings: shared dict containing runtime settings (e.g., {'led': {'brightness': 128}})
+        settings_lock: lock guarding access to current_settings
+        port: optional serial port; auto-detects Teensy if not given
+        baud: serial baud rate (default 2_000_000)
 
-class LEDThread(threading.Thread):
-    """Background worker driving the LED strip via a Teensy controller."""
+    Behavior:
+        - Blocks briefly on frame_queue.get(timeout=...) to pull frames.
+        - If it receives SENTINEL (None), exits cleanly.
+        - Uses per-frame brightness if provided; otherwise reads from current_settings.
+    """
 
     def __init__(
         self,
+        *,
         stop_evt: threading.Event,
-        get_settings: Callable[[], dict],
-        width: int = 16,
-        height: int = 16,
-        strips_used: int = 1,
-        brightness: int = 30,
+        frame_queue,                   # multiprocessing.Queue[FrameItem]
+        current_settings: dict,
+        settings_lock: threading.Lock,
         port: Optional[str] = None,
-        ser: Optional[serial.Serial] = None,
+        baud: int = 2_000_000,
     ) -> None:
-        super().__init__(daemon=True)
+        super().__init__(name="LEDControllerThread", daemon=False)
         self.stop_evt = stop_evt
-        self.get_settings = get_settings
-        self.width = width
-        self.height = height
-        self.strips_used = strips_used
-        self.default_brightness = brightness
-
+        self.frame_queue = frame_queue
+        self.current_settings = current_settings
+        self.settings_lock = settings_lock
         self.port = port or find_teensy()
-        self.ser: Optional[serial.Serial] = ser
+        self.baud = baud
+        self.ser: Optional["serial.Serial"] = None
 
-        # serialize writes to the Teensy
-        self._io_lock = threading.Lock()
+        # --- SETTINGS CHECK (add your validation here) -----------------------
+        # Example (uncomment & customize as needed):
+        # with self.settings_lock:
+        #     led_cfg = self.current_settings.get("led", {})
+        #     # Validate brightness (0-255)
+        #     default_brightness = int(led_cfg.get("brightness", 128))
+        #     self.default_brightness = _clamp_byte(default_brightness)
+        #     # Optionally validate matrix size (if you track width/height in settings)
+        #     # self.width = int(led_cfg.get("width", 16))
+        #     # self.height = int(led_cfg.get("height", 16))
+        # --------------------------------------------------------------------
 
-    # ------------------- public API -------------------
-    def send_raw_frame(self, payload_grb: bytes, brightness: Optional[int] = None) -> None:
-        """Send a pre-built GRB payload to the LEDs."""
-        ser = self._ensure_serial()
-        if not ser:
-            return
-        with self._io_lock:
-            send_frame(
-                ser,
-                payload_grb,
-                brightness if brightness is not None else self._get_brightness(),
-            )
-        print(f"[LED] frame of {len(payload_grb) // 3} pixels sent")
+        if not hasattr(self, "default_brightness"):
+            self.default_brightness = 128  # safe fallback
 
-    # ------------------ internal helpers ------------------
-
-    def _ensure_serial(self) -> Optional[serial.Serial]:
+    # --------- internals ---------
+    def _ensure_serial(self) -> Optional["serial.Serial"]:
         if self.ser:
             return self.ser
-        if serial is None:  # pragma: no cover - serial missing
-            logging.warning("pyserial not available; LED thread will idle")
-            self.ser = None
+        if serial is None:
+            logging.warning("pyserial not available; LEDController will idle.")
             return None
         try:
-            self.ser = serial.Serial(self.port, 2_000_000, timeout=0.2)
-        except Exception as exc:  # pragma: no cover - hardware dependent
-            logging.warning("Failed to open serial port %s: %s", self.port, exc)
+            self.ser = serial.Serial(self.port, self.baud, timeout=0.2, write_timeout=1.0)
+            # Optional: read boot banner / wait briefly for RDY
+            t0 = time.time()
+            self.ser.reset_input_buffer()
+            while time.time() - t0 < 2.0 and not self.stop_evt.is_set():
+                try:
+                    line = self.ser.readline().decode("utf-8", "ignore").strip()
+                    if line:
+                        logging.info("Teensy: %s", line)
+                        if line == "RDY":
+                            break
+                except Exception:
+                    break
+        except Exception as e:
+            logging.warning("Failed to open serial port %s: %s", self.port, e)
             self.ser = None
         return self.ser
 
@@ -132,53 +146,67 @@ class LEDThread(threading.Thread):
                 pass
             self.ser = None
 
-    def _get_brightness(self) -> int:
+    def _current_brightness(self) -> int:
         try:
-            return int(self.get_settings().get("led", {}).get("brightness", self.default_brightness))
+            with self.settings_lock:
+                b = int(self.current_settings.get("led", {}).get("brightness", self.default_brightness))
+            return _clamp_byte(b)
         except Exception:
             return self.default_brightness
 
-    def _set_all(self, color: Color) -> None:
+    # --------- main loop ---------
+    def run(self) -> None:
+        logging.info("[LED] controller starting on %s", self.port)
         ser = self._ensure_serial()
         if not ser:
-            return
-        payload = build_solid_grb(self.width, self.height, self.strips_used, color)
-        with self._io_lock:
-            send_frame(ser, payload, self._get_brightness())
-
-    def _clear_immediate(self) -> None:
-        """Immediately clear LEDs to black (thread-safe)."""
-        try:
-            self._set_all((0, 0, 0))
-        except Exception:
-            pass
-
-    # -------------------- thread loop --------------------
-    def run(self) -> None:  # pragma: no cover - contains time-based loop
-        print("[LED] thread starting up")
-        ser = self._ensure_serial()
-        if not ser:
+            # Idle if we cannot open serial; still allow graceful shutdown.
             while not self.stop_evt.is_set():
-                time.sleep(0.5)
+                time.sleep(0.2)
             return
 
-        # Flush stale boot text and wait up to 5s for RDY once
-        ser.reset_input_buffer()
-        t0 = time.time()
-        while time.time() - t0 < 5.0 and not self.stop_evt.is_set():
-            line = ser.readline().decode("utf-8", "ignore").strip()
-            if line:
-                logging.info("Teensy: %s", line)
-                if line == "RDY":
+        try:
+            while not self.stop_evt.is_set():
+                # Try to get the next frame (or sentinel) with a short timeout
+                try:
+                    item: FrameItem = self.frame_queue.get(timeout=0.02)
+                except Exception:
+                    # No frame yet — light sleep to reduce CPU, adjust if targeting FPS
+                    time.sleep(0.05)
+                    continue
+
+                # --- Sentinel to exit cleanly --- #this may need to go, main sends this 
+                if item is SENTINEL:
                     break
 
-        try:
-            while not self.stop_evt.is_set():
-                time.sleep(0.1)
+                # Normalize to (payload, brightness_override)
+                if isinstance(item, (bytes, bytearray, memoryview)):
+                    payload: bytes = bytes(item)
+                    br_override: Optional[int] = None
+                else:
+                    payload, br_override = item  # type: ignore[assignment]
+                    payload = bytes(payload)
+
+                brightness = (
+                    _clamp_byte(int(br_override)) if br_override is not None else self._current_brightness()
+                )
+
+                try:
+                    _send_frame(ser, payload, brightness)
+                except Exception as e:
+                    # Quick reconnect attempt, then continue
+                    logging.warning("Serial write failed: %s (attempting reconnect)", e)
+                    self._close_serial()
+                    if self.stop_evt.is_set():
+                        break
+                    time.sleep(0.2)
+                    ser = self._ensure_serial()
+                    if ser:
+                        try:
+                            _send_frame(ser, payload, brightness)
+                        except Exception as e2:
+                            logging.error("Serial write failed after reconnect: %s", e2)
         finally:
-            # Always leave LEDs off when the thread exits
-            try:
-                self._clear_immediate()
-            except Exception:
-                pass
+            blank_payload = bytes([0, 0, 0]) * (256)  # adjust pixel count as needed
+            _send_frame(self.ser, blank_payload, 0)   # brightness 0 or your preferred value
             self._close_serial()
+            logging.info("[LED] controller stopped")

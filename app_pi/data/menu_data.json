@@ -4,6 +4,17 @@
             "Dummy":0
         },
         "Settings":{
+            "Animation Mode:":{
+                "link":"",
+                "action":"view",
+                "default":"idle",
+                "options":[
+                    "idle",
+                    "test",
+                    "show",
+                    "draw"
+                ]
+            },
             "LED Brightness":{
                 "link":"",
                 "action":"value",
@@ -72,7 +83,13 @@
             }
         },
         "Shutdown":{
-            "shutdown":{
+            "Restart Program":{
+                "link":"",
+                "action":"restart",
+                "default":0,
+                "options":[ 
+                ]
+            },"Shutdown":{
                 "link":"",
                 "action":"shutdown",
                 "default":0,

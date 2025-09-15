@@ -3,6 +3,8 @@
 #owns the buttons and pointer tracking
 #owns the setting changes
 
+#getting brightness to update with event flag
+
 import json
 from pathlib import Path
 from screen_controller import ScreenController
@@ -126,6 +128,7 @@ class MenuController:
                 # Rotate to next value
                 next_idx = (idx + 1) % len(available_values)
                 self.current_settings[setting_name] = available_values[next_idx]
+                #set flag
                 self.settings_changed.set()
             else:
                 # Handle other actions (e.g., save, reset)
