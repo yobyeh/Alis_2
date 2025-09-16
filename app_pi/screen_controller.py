@@ -10,7 +10,15 @@ class ScreenController:
         self.height = height
         self.settings_lock = settings_lock
         self.current_settings = currnet_settings
+        self.font = self.get_font()
 
+    def get_font(self):
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+        except IOError:
+            font = ImageFont.load_default()
+        return font
+    
     #240 x 320
     #x y x y 
     #recieves: current screen index, current option index, and menu data
@@ -20,11 +28,6 @@ class ScreenController:
         #background
         img = Image.new("RGB", (self.height, self.width), (0,0,0))  # type: ignore
         draw = ImageDraw.Draw(img)
-        #font
-        try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
-        except IOError:
-            font = ImageFont.load_default()
 
         #build list of screens starting with home so index is correct
         screen_list = []
@@ -38,24 +41,24 @@ class ScreenController:
         #print("screen controler screen, selection", screen, selection)
         if screen != 0:
               title = screen_list[screen]
-        draw.text((2, 4), title, fill="white", font=font)
+        draw.text((2, 4), title, fill="white", font=self.font)
 
         #footer
         draw.rectangle([0, 210, 320, 240], outline=(8, 0, 158), fill=(8, 0, 50), width=1)
-        draw.text((10, 214), "Address:", fill="white", font=font)
+        draw.text((10, 214), "Address:", fill="white", font=self.font)
 
         #options
         i = 0
         if screen == 0:
             for option in menu_data["home"]:
-                draw.text((10, 40 + i * 30), option, fill="white", font=font)
+                draw.text((10, 40 + i * 30), option, fill="white", font=self.font)
                 #draw.text((250, 40 + i * 30), "Value", fill="white", font=font)
                 i += 1
         else:
             current_screen = screen_list[screen]
             i = 0
             for option in menu_data["home"][current_screen]:
-                 draw.text((10, 40 + i * 30), option, fill="white", font=font)
+                 draw.text((10, 40 + i * 30), option, fill="white", font=self.font)
                  i += 1
 
         #values
@@ -65,7 +68,7 @@ class ScreenController:
             for key, value in self.current_settings.items():
                 #-1 is no default value
                 if value != -1:
-                    draw.text((250, 40 + i * 30), str(value), fill="white", font=font)
+                    draw.text((250, 40 + i * 30), str(value), fill="white", font=self.font)
                 i += 1
         self.settings_lock.release()    
 

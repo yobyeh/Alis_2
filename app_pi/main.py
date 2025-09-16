@@ -8,6 +8,7 @@ from pathlib import Path
 import time
 import multiprocessing
 import queue
+import signal
 
 from interface import start_interface  # def start_interface(settings: dict, shutdown_event, lock)
 from led_controller import LEDController
@@ -19,7 +20,10 @@ SETTINGS_PATH = Path("data/settings.json")
 settings_lock = threading.Lock()
 settings_changed = threading.Event()
 shutdown_event = threading.Event()
+#amimation to led controller
 frame_queue = queue.Queue()
+#web to animation controller
+web_animation_queue = multiprocessing.Queue()
 
 #thread communication
 interface_que = multiprocessing.Queue()
@@ -53,6 +57,21 @@ def save_settings():
         print("Settings saved.", flush=True)
     except Exception:
         logging.exception("Failed to save settings")
+
+def run_web_server(web_animation_queue):
+    import uvicorn
+    import web_server
+    web_server.app.state.web_animation_queue = web_animation_queue  # <-- set in app.state
+    uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=False)
+
+def start_web_server_monitor(web_animation_queue):
+    while True:
+        proc = multiprocessing.Process(target=run_web_server, args=(web_animation_queue,))
+        proc.start()
+        print("Web server started.")
+        proc.join()  # Wait for process to exit
+        print("Web server crashed or exited, restarting in 2s...")
+        time.sleep(2)  # Optional: avoid rapid restart loop
 
 def main():
     logging.basicConfig(
@@ -91,10 +110,21 @@ def main():
         stop_evt = shutdown_event,
         frame_queue = frame_queue,
         current_settings = current_settings,
-        settings_lock = settings_lock
+        settings_lock = settings_lock,
+        web_animation_queue = web_animation_queue
     )
     animation_controller.start()
     print("Animation controller thread started.", flush=True)
+
+    # -------------------- Start web server process --------------------
+    # web_server_proc = multiprocessing.Process(target=run_web_server)
+    # web_server_proc.start()
+    # print("Web server started.", flush=True)
+
+    # -------------------- Start web server monitor --------------------
+    web_server_monitor = multiprocessing.Process(target=start_web_server_monitor, args=(web_animation_queue,))
+    web_server_monitor.start()
+    print("Web server monitor started.", flush=True)
 
     try:
         # Keep main alive until signaled (or one of the threads ends)
@@ -130,6 +160,18 @@ def main():
             interface_thread.join(timeout=5)
         except Exception:
             pass
+
+        # Stop web server process
+        # if web_server_proc.is_alive():
+        #     web_server_proc.terminate()
+        #     web_server_proc.join(timeout=5)
+        #     print("Web server stopped.", flush=True)
+
+        # Stop web server monitor
+        if web_server_monitor.is_alive():
+            web_server_monitor.terminate()
+            web_server_monitor.join(timeout=5)
+            print("Web server monitor stopped.", flush=True)
 
         save_settings()
         print("main exiting.", flush=True)
