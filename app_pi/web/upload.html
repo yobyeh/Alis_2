@@ -1,0 +1,146 @@
+<!-- Example for /home/slug/repos/Alis_2/app_pi/web/upload.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Alis Upload</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            background: #222831;
+            min-height: 100vh;
+        }
+        .header {
+            width: 100vw;
+            background: #2979ff;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 80px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .header a {
+            color: #fff;
+            text-decoration: none;
+            font-size: 2.5em;
+            font-weight: bold;
+            letter-spacing: 0.05em;
+        }
+        .upload-box {
+            background: #393e46;
+            border-radius: 1em;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            max-width: 400px;
+            margin: 60px auto;
+            padding: 2em;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .upload-box label {
+            color: #fff;
+            font-size: 1.2em;
+            margin-bottom: 1em;
+        }
+        .upload-box input[type="file"] {
+            margin-bottom: 1em;
+            color: #fff;
+        }
+        .upload-box button {
+            padding: 0.8em 2em;
+            font-size: 1.2em;
+            border-radius: 0.5em;
+            border: none;
+            background: #2979ff;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .upload-box button:disabled {
+            background: #888;
+            cursor: not-allowed;
+        }
+        .upload-box button:hover:enabled {
+            background: #1565c0;
+        }
+        .upload-status {
+            margin-top: 1em;
+            color: #fff;
+            font-size: 1em;
+            min-height: 2em;
+        }
+        .loading {
+            color: #ffd600;
+        }
+        .success {
+            color: #00e676;
+        }
+        .error {
+            color: #ff1744;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/web/home.html">Alis</a>
+    </div>
+    <div class="upload-box">
+        <form id="uploadForm" enctype="multipart/form-data">
+            <label for="fileInput">Upload a file (JPEG, PNG, GIF, MP4):</label>
+            <input type="file" id="fileInput" name="file"
+                   accept=".jpeg,.jpg,.png,.gif,.mp4,image/jpeg,image/png,image/gif,video/mp4" required>
+            <button type="submit" id="uploadBtn">Upload</button>
+        </form>
+        <div class="upload-status" id="uploadStatus"></div>
+    </div>
+    <script>
+        const uploadForm = document.getElementById("uploadForm");
+        const uploadBtn = document.getElementById("uploadBtn");
+        const status = document.getElementById("uploadStatus");
+
+        uploadForm.onsubmit = async function(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById("fileInput");
+            const file = fileInput.files[0];
+            if (!file) {
+                status.textContent = "Please select a file.";
+                status.className = "upload-status error";
+                return;
+            }
+            // Check file type on client side
+            const allowedTypes = ["image/jpeg", "image/png", "image/gif", "video/mp4"];
+            if (!allowedTypes.includes(file.type)) {
+                status.textContent = "Invalid file type.";
+                status.className = "upload-status error";
+                return;
+            }
+            status.textContent = "Uploading...";
+            status.className = "upload-status loading";
+            uploadBtn.disabled = true;
+            const formData = new FormData();
+            formData.append("file", file);
+            try {
+                const response = await fetch("/api/upload", {
+                    method: "POST",
+                    body: formData
+                });
+                if (response.ok) {
+                    status.textContent = "Upload successful!";
+                    status.className = "upload-status success";
+                } else {
+                    status.textContent = "Upload failed.";
+                    status.className = "upload-status error";
+                }
+            } catch (err) {
+                status.textContent = "Error uploading file.";
+                status.className = "upload-status error";
+            }
+            uploadBtn.disabled = false;
+        };
+    </script>
+</body>
+</html>

@@ -103,6 +103,8 @@ class AnimationController(threading.Thread):
                                 # self.frame_queue.put((bytes(payload), self.brightness))
                         except queue.Empty:
                             pass  # No new draw events, just continue
+                    case "static":
+                        pass
                     case _:
                         #should except
                         print("invalid animation mode")
