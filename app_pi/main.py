@@ -73,6 +73,18 @@ def start_web_server_monitor(web_animation_queue):
         print("Web server crashed or exited, restarting in 2s...")
         time.sleep(2)  # Optional: avoid rapid restart loop
 
+def ensure_uploaded_folders():
+    base = Path("uploaded")
+    subfolders = ["animations", "images", "images/preview", "animations/preview", "raw"]
+    if not base.exists():
+        base.mkdir()
+        print(f"Created folder: {base}")
+    for sub in subfolders:
+        sub_path = base / sub
+        if not sub_path.exists():
+            sub_path.mkdir(parents=True)
+            print(f"Created subfolder: {sub_path}")
+
 def main():
     logging.basicConfig(
         level=logging.DEBUG,
@@ -83,6 +95,8 @@ def main():
     current_settings = load_settings()
     print("Alis starting...", flush=True)
 
+    ensure_uploaded_folders()
+
     # -------------------- Start interface thread --------------------
     interface_thread = threading.Thread(
         target=start_interface,
@@ -92,8 +106,6 @@ def main():
     )
     interface_thread.start()
     print("Interface thread started.", flush=True)
-
-
 
     # -------------------- Start LED controller thread --------------------
     led_controller = LEDController(

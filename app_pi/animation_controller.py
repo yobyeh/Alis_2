@@ -4,6 +4,8 @@ import time
 import queue
 import threading
 from multiprocessing import Queue
+import h5py
+import numpy as np
 
 #hard coded pixels init and brightness 
 
@@ -40,8 +42,6 @@ class AnimationController(threading.Thread):
                 row.append(0)
             matrix.append(row)
         return matrix
-
-
 
     #transform xy limit 100 to current pixels 
     def trans_100xy(self, xy):
@@ -104,7 +104,19 @@ class AnimationController(threading.Thread):
                         except queue.Empty:
                             pass  # No new draw events, just continue
                     case "static":
-                        pass
+                        print("running static")
+                        msg = self.web_animation_queue.get()
+                        if msg.get("type") == "image":
+                            filename = msg.get("name")
+                            h5_path = f"uploaded/images/{filename}"
+                            matrix = load_h5_frame_to_matrix(h5_path)
+                            # Convert matrix to GRB bytes
+                            payload = bytearray()
+                            for x in range(self.width):
+                                for y in range(self.height):
+                                    g, r, b = matrix[y, x]  # matrix is (height, width, 3)
+                                    payload.extend([g, r, b])
+                            self.frame_queue.put((bytes(payload), self.brightness))
                     case _:
                         #should except
                         print("invalid animation mode")
@@ -123,3 +135,14 @@ def html_to_grb(html_color):
     html_color = html_color.lstrip('#')
     r, g, b = (int(html_color[i:i+2], 16) for i in (0, 2, 4))
     return (g, r, b)
+
+def load_h5_frame_to_matrix(h5_file, frame_idx=0):
+    with h5py.File(h5_file, "r") as h5f:
+        if "frames" not in h5f:
+            raise ValueError(f"No 'frames' dataset in {h5_file}")
+        frames = h5f["frames"]
+        print("frames type:", type(frames))
+        if not isinstance(frames, h5py.Dataset):
+            raise TypeError(f"'frames' is not a dataset in {h5_file}, got {type(frames)}")
+        matrix = np.array(frames[frame_idx])  # shape: (height, width, 3)
+    return matrix

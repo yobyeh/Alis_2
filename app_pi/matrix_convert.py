@@ -6,13 +6,17 @@ import numpy as np
 
 
 class MatrixConvert:
-    def __init__(self, folder="uploaded/raw", width=16, height=16, out_folder="uploaded/images", grb=False):
+    def __init__(self, folder="uploaded/raw", width=16, height=16, fps=30, out_folder="uploaded/images", grb=False, preview_size=128):
         self.folder = Path(folder)
         self.width = width
         self.height = height
+        self.fps = fps
         self.out_folder = Path(out_folder)
         self.out_folder.mkdir(parents=True, exist_ok=True)
+        self.preview_folder = self.out_folder / "preview"
+        self.preview_folder.mkdir(parents=True, exist_ok=True)
         self.grb = grb  # Flag to save as GRB
+        self.preview_size = preview_size
 
     def convert_uploaded_files(self):
         for file in self.folder.iterdir():
@@ -48,6 +52,7 @@ class MatrixConvert:
             print(f"Matrix for {file.name}:")
             print(matrix)
             self.save_matrix_h5(file.stem, matrix)
+            self.save_image_preview(file.stem, img)
         except Exception as e:
             print(f"Error processing image {file.name}: {e}")
 
@@ -60,8 +65,18 @@ class MatrixConvert:
             h5f.attrs["color_order"] = "GRB" if self.grb else "RGB"
         print(f"Saved matrix to {out_path}")
 
+    def save_image_preview(self, name, img):
+        preview_path = self.preview_folder / f"{name}.png"
+        preview_img = img.resize((self.preview_size, self.preview_size), Image.NEAREST)
+        preview_img.save(preview_path)
+        print(f"Saved preview to {preview_path}")
 
-# Example usage:
-if __name__ == "__main__":
-    converter = MatrixConvert(grb=True)  # Set grb=True to save as GRB
+
+def run_matrix_convert(grb=True, width=16, height=16, folder="uploaded/raw", out_folder="uploaded/images"):
+    converter = MatrixConvert(grb=grb, width=width, height=height, folder=folder, out_folder=out_folder)
     converter.convert_uploaded_files()
+
+
+# Example usage for direct run:
+if __name__ == "__main__":
+    run_matrix_convert(grb=True)

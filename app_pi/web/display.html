@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Alis</title>
+    <title>Alis Display</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
@@ -29,12 +29,140 @@
             font-weight: bold;
             letter-spacing: 0.05em;
         }
+        .top-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 2em;
+            margin: 2em 0 1em 0;
+        }
+        .top-buttons button {
+            padding: 1em 2em;
+            font-size: 1.5em;
+            border-radius: 0.8em;
+            border: none;
+            background: #2979ff;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .top-buttons button.active {
+            background: #1565c0;
+            border: 2px solid #fff;
+        }
+        .list-container {
+            max-height: 60vh;
+            overflow-y: auto;
+            margin: 0 auto;
+            width: 90vw;
+            background: #393e46;
+            border-radius: 1em;
+            padding: 1em;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .image-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1em;
+        }
+        .image-item {
+            display: flex;
+            align-items: center;
+            gap: 1em;
+            background: #23272f;
+            border-radius: 0.5em;
+            padding: 0.5em 1em;
+        }
+        .image-item img {
+            width: 64px;
+            height: 64px;
+            border-radius: 0.5em;
+            background: #111;
+            object-fit: contain;
+            border: 2px solid #2979ff;
+        }
+        .image-item span {
+            color: #fff;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <a href="/web/home.html">Alis</a>
     </div>
-    <!-- Page-specific content goes here -->
+    <div class="top-buttons">
+        <button id="staticBtn" class="active">Static</button>
+        <button id="animationBtn">Animation</button>
+    </div>
+    <div class="list-container" id="staticList">
+        <div class="image-list" id="imageList">
+            <!-- Images will be loaded here -->
+        </div>
+    </div>
+    <div class="list-container hidden" id="animationList">
+        <!-- Animation list placeholder -->
+        <div style="color:#fff; text-align:center; font-size:1.5em;">No animations yet.</div>
+    </div>
+    <script>
+        // Button toggle logic
+        const staticBtn = document.getElementById("staticBtn");
+        const animationBtn = document.getElementById("animationBtn");
+        const staticList = document.getElementById("staticList");
+        const animationList = document.getElementById("animationList");
+
+        staticBtn.onclick = () => {
+            staticBtn.classList.add("active");
+            animationBtn.classList.remove("active");
+            staticList.classList.remove("hidden");
+            animationList.classList.add("hidden");
+        };
+        animationBtn.onclick = () => {
+            animationBtn.classList.add("active");
+            staticBtn.classList.remove("active");
+            animationList.classList.remove("hidden");
+            staticList.classList.add("hidden");
+        };
+
+        // Load image list from backend
+        async function loadImages() {
+            const response = await fetch("/api/image_list");
+            if (!response.ok) return;
+            const images = await response.json();
+            const imageList = document.getElementById("imageList");
+            imageList.innerHTML = "";
+            images.forEach(img => {
+                const item = document.createElement("div");
+                item.className = "image-item";
+                item.style.cursor = "pointer";
+                const preview = document.createElement("img");
+                preview.src = img.preview_url;
+                preview.alt = img.name;
+                const name = document.createElement("span");
+                name.textContent = img.name;
+                item.appendChild(preview);
+                item.appendChild(name);
+                // Make selectable and send to backend
+                item.onclick = async () => {
+                    item.style.background = "#2979ff";
+                    item.style.color = "#fff";
+                    await fetch("/api/run_image", {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({name: img.name})
+                    });
+                    // TODO: Add feedback or highlight logic here
+                };
+                imageList.appendChild(item);
+            });
+        }
+
+        // Initial load
+        loadImages();
+    </script>
 </body>
 </html>
