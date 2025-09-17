@@ -1,6 +1,11 @@
 {
-  "Animation Mode:": "static",
+  "Animation Mode": "draw",
   "LED Brightness": 60,
   "Screen Brightness": 60,
-  "Sleep Timer": 120
+  "Sleep Timer": 120,
+  "LEDs Width": 0,
+  "LEDs Height": 0,
+  "Signal Start": "top L",
+  "Signal Path": "zig vert",
+  "Color order": "grb"
 }

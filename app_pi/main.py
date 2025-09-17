@@ -9,6 +9,7 @@ import time
 import multiprocessing
 import queue
 import signal
+from multiprocessing import Manager, Lock
 
 from interface import start_interface  # def start_interface(settings: dict, shutdown_event, lock)
 from led_controller import LEDController
@@ -28,6 +29,10 @@ web_animation_queue = multiprocessing.Queue()
 #thread communication
 interface_que = multiprocessing.Queue()
 
+manager = Manager()
+current_settings = manager.dict({"Animation Mode": "idle"})
+settings_lock = Lock()
+
 def load_settings() -> dict:
     menu_data = []
     #find menu data
@@ -41,10 +46,13 @@ def load_settings() -> dict:
         new_settings = {}
         for setting, setting_data in menu_data["home"]["Settings"].items():
             default_value = setting_data.get("default")
-            #print(setting, default_value, flush=True)
             if default_value != -1:
                 new_settings.update({setting: default_value})
-        #print(new_settings, flush=True)
+        for setting, setting_data in menu_data["home"]["LED Config"].items():
+            default_value = setting_data.get("default")
+            if default_value != -1:
+                new_settings.update({setting: default_value})
+
         SETTINGS_PATH.write_text(json.dumps(new_settings))
         return new_settings
     else:
@@ -58,20 +66,28 @@ def save_settings():
     except Exception:
         logging.exception("Failed to save settings")
 
-def run_web_server(web_animation_queue):
+def run_web_server(web_animation_queue, current_settings, settings_lock):
     import uvicorn
     import web_server
-    web_server.app.state.web_animation_queue = web_animation_queue  # <-- set in app.state
+    web_server.app.state.web_animation_queue = web_animation_queue
+    web_server.app.state.current_settings = current_settings
+    web_server.app.state.settings_lock = settings_lock  # <-- set in app.state
     uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=False)
 
-def start_web_server_monitor(web_animation_queue):
-    while True:
-        proc = multiprocessing.Process(target=run_web_server, args=(web_animation_queue,))
+def start_web_server_monitor(web_animation_queue, current_settings, settings_lock):
+    while not shutdown_event.is_set():
+        proc = multiprocessing.Process(target=run_web_server, args=(web_animation_queue, current_settings, settings_lock))
         proc.start()
         print("Web server started.")
-        proc.join()  # Wait for process to exit
+        while proc.is_alive() and not shutdown_event.is_set():
+            time.sleep(0.5)
+        if shutdown_event.is_set():
+            proc.terminate()
+            proc.join()
+            print("Web server monitor exiting due to shutdown.")
+            break
         print("Web server crashed or exited, restarting in 2s...")
-        time.sleep(2)  # Optional: avoid rapid restart loop
+        time.sleep(2)
 
 def ensure_uploaded_folders():
     base = Path("uploaded")
@@ -134,7 +150,9 @@ def main():
     # print("Web server started.", flush=True)
 
     # -------------------- Start web server monitor --------------------
-    web_server_monitor = multiprocessing.Process(target=start_web_server_monitor, args=(web_animation_queue,))
+    web_server_monitor = multiprocessing.Process(
+        target=start_web_server_monitor, args=(web_animation_queue, current_settings, settings_lock)
+    )
     web_server_monitor.start()
     print("Web server monitor started.", flush=True)
 

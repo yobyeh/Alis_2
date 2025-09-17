@@ -14,8 +14,8 @@ from matrix_convert import run_matrix_convert
 Path("uploaded/images/preview").mkdir(parents=True, exist_ok=True)
 
 app = FastAPI()
-app.mount("/web", StaticFiles(directory="web"), name="web")
 app.mount("/web/images/preview", StaticFiles(directory="uploaded/images/preview"), name="preview")
+app.mount("/web", StaticFiles(directory="web"), name="web")
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
@@ -29,8 +29,11 @@ async def image_list():
     items = []
     for h5_file in image_folder.glob("*.h5"):
         name = h5_file.name
+        print(name)
         preview_file = preview_folder / (h5_file.stem + ".png")
+        print(preview_file)
         if preview_file.exists():
+            print("preview exists", preview_file)
             preview_url = f"/web/images/preview/{preview_file.name}"
         else:
             preview_url = ""
@@ -39,29 +42,35 @@ async def image_list():
 
 @app.post("/api/drawmode")
 async def draw_mode():
-    print("Draw mode activated!", flush=True)
+    web_animation_queue = app.state.web_animation_queue
+    msg = {"type": "mode", "mode": "draw"}
+    web_animation_queue.put(msg)
+    print("Sent draw mode message to animation controller")
     return {"status": "draw mode"}
 
 @app.websocket("/wsdraw")
 async def ws_draw(websocket: WebSocket):
     await websocket.accept()
     web_animation_queue = app.state.web_animation_queue
-    while True:
-        data = await websocket.receive_text()
-        try:
-            import json
-            msg = json.loads(data)
-            if msg.get("type") == "color":
-                print(f"Color changed to {msg['color']}", flush=True)
-            elif msg.get("type") == "matrix":
-                print("Received matrix", flush=True)
-                web_animation_queue.put(msg)  # Send the whole matrix to animation controller
-            elif msg.get("type") == "clear":
-                print("Clear canvas", flush=True)
-                web_animation_queue.put("clear")
-        except Exception as e:
-            print("WebSocket error:", e, flush=True)
-            await websocket.send_text("Error: invalid data")
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                import json
+                msg = json.loads(data)
+                if msg.get("type") == "color":
+                    print(f"Color changed to {msg['color']}", flush=True)
+                elif msg.get("type") == "matrix":
+                    print("Received matrix", flush=True)
+                    web_animation_queue.put(msg)  # Send the whole matrix to animation controller
+                elif msg.get("type") == "clear":
+                    print("Clear canvas", flush=True)
+                    web_animation_queue.put("clear")
+            except Exception as e:
+                print("WebSocket error:", e, flush=True)
+                await websocket.send_text("Error: invalid data")
+    except Exception as e:
+        print(f"WebSocket closed: {e}", flush=True)
 
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):

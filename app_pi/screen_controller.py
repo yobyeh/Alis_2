@@ -61,16 +61,27 @@ class ScreenController:
                  draw.text((10, 40 + i * 30), option, fill="white", font=self.font)
                  i += 1
 
-        #values
-        self.settings_lock.acquire()
+        #values settings
         if screen_list[screen] == "Settings":
+            self.settings_lock.acquire()
             i = 0
             for key, value in self.current_settings.items():
                 #-1 is no default value
                 if value != -1:
                     draw.text((250, 40 + i * 30), str(value), fill="white", font=self.font)
                 i += 1
-        self.settings_lock.release()    
+            self.settings_lock.release()
+        
+        #values led config
+        if screen_list[screen] == "LED Config":
+            self.settings_lock.acquire()
+            i = 0
+            for key, value in self.current_settings.items():
+                #-1 is no default value
+                if value != -1:
+                    draw.text((250, 40 + i * 30), str(value), fill="white", font=self.font)
+                i += 1
+            self.settings_lock.release()
 
         #selection
         select_start = 35

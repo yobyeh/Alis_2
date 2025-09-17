@@ -18,6 +18,7 @@ class MatrixConvert:
         self.grb = grb  # Flag to save as GRB
         self.preview_size = preview_size
 
+    #convert from raw and delete after process
     def convert_uploaded_files(self):
         for file in self.folder.iterdir():
             if file.is_file():
@@ -27,6 +28,9 @@ class MatrixConvert:
                     case "image/jpeg" | "image/png":
                         print(f"Processing image: {file.name}")
                         self.process_image(file)
+                        # Delete the raw file after processing
+                        file.unlink()
+                        print(f"Deleted raw file: {file}")
                     case "image/gif":
                         print(f"Processing GIF: {file.name}")
                         # TODO: Add GIF processing here
@@ -50,7 +54,7 @@ class MatrixConvert:
                     else:
                         matrix[y, x] = [r, g, b]  # RGB order
             print(f"Matrix for {file.name}:")
-            print(matrix)
+            #print(matrix)
             self.save_matrix_h5(file.stem, matrix)
             self.save_image_preview(file.stem, img)
         except Exception as e:

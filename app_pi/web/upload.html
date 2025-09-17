@@ -90,10 +90,18 @@
     </div>
     <div class="upload-box">
         <form id="uploadForm" enctype="multipart/form-data">
-            <label for="fileInput">Upload a file (JPEG, PNG, GIF, MP4):</label>
+            <label for="fileInput">
+                Upload a file (JPEG, PNG, GIF, MP4):<br> 
+            </label>
             <input type="file" id="fileInput" name="file"
                    accept=".jpeg,.jpg,.png,.gif,.mp4,image/jpeg,image/png,image/gif,video/mp4" required>
-            <button type="submit" id="uploadBtn">Upload</button>
+            <br>
+            <span style="font-size:0.9em; color:#ffd600;">
+                Uploaded files will convert to current LED pattern settings.
+            </span>
+            <br>
+            <button type="submit" id="uploadBtn">Upload/Convert</button>
+            
         </form>
         <div class="upload-status" id="uploadStatus"></div>
     </div>

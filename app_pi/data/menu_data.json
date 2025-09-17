@@ -4,7 +4,7 @@
             "Dummy":0
         },
         "Settings":{
-            "Animation Mode:":{
+            "Animation Mode":{
                 "link":"",
                 "action":"view",
                 "default":"idle",
@@ -89,11 +89,57 @@
                 "default":0,
                 "options":[ 
                 ]
-            },"Shutdown":{
+            },
+            "Shutdown":{
                 "link":"",
                 "action":"shutdown",
                 "default":0,
                 "options":[ 
+                ]
+            }
+        },
+        "LED Config":{
+            "LEDs Width":{
+                "link":"",
+                "action":"keypad_set",
+                "default":0,
+                "options":[ 
+                ]
+            },
+            "LEDs Height":{
+                "link":"",
+                "action":"keypad_set",
+                "default":0,
+                "options":[ 
+                ]
+            },
+            "Signal Start":{
+                "link":"",
+                "action":"string_value",
+                "default":"top L",
+                "options":[
+                    "top L",
+                    "bot L",
+                    "top R",
+                    "bot R"
+                ]
+            },
+            "Signal Path":{
+                "link":"",
+                "action":"string_value",
+                "default":"zig vert",
+                "options":[
+                    "zig V",
+                    "zig H"
+                ]
+            },
+            "Color order":{
+                "link":"",
+                "action":"string_value",
+                "default":"grb",
+                "options":[ 
+                    "grb",
+                    "rgb"
                 ]
             }
         }

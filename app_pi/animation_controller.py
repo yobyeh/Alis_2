@@ -25,10 +25,10 @@ class AnimationController(threading.Thread):
         self.brightness = 1
         self.draw_matrix = self.new_draw_matrix()
 
+    #set new mode in current settings
     def set_mode(self):
         with self.settings_lock:
-            mode = self.current_settings.get("Animation Mode:")
-        self.mode = mode
+            self.current_settings["Animation Mode"] = self.mode
 
     def convert_html_to_GRB(self):
         pass
@@ -52,13 +52,27 @@ class AnimationController(threading.Thread):
 
     def run(self):
         try:
-         # --- main loop ---
             while not self.shutdown_event.is_set():
-                self.set_mode()
+                mode_changed = False
+                msg = None
+                try:
+                    msg = self.web_animation_queue.get(timeout=0.1)
+                except queue.Empty:
+                    pass
+
+                # Only handle mode change messages here
+                if msg and isinstance(msg, dict) and msg.get("type") == "mode":
+                    self.mode = msg.get("mode")
+                    self.set_mode()
+                    mode_changed = True
+
+                if mode_changed:
+                    continue  # Restart loop immediately if mode changed
+
                 match self.mode:
                     case "idle":
                         print("animation controller idle")
-                        time.sleep(0.5)
+                        time.sleep(3.0)
                     case "test":
                         print("animation controller test")
                         self.frame_queue.put((bytes([0, 255, 0]) * self.pixels, self.brightness))
@@ -67,56 +81,40 @@ class AnimationController(threading.Thread):
                         time.sleep(2)
                         self.frame_queue.put((bytes([0, 0, 255]) * self.pixels, self.brightness))
                         time.sleep(2)
-                        pass
                     case "show":
                         pass
                     case "draw":
                         try:
-                            msg = self.web_animation_queue.get(timeout=0.1)
                             if msg == "clear":
                                 self.draw_matrix = self.new_draw_matrix()
                                 self.frame_queue.put((bytes([0, 0, 0]) * self.pixels, self.brightness))
                                 print("Canvas cleared")
-                            elif msg.get("type") == "matrix":
+                            elif msg and isinstance(msg, dict) and msg.get("type") == "matrix":
                                 matrix = msg["matrix"]
-                                # Convert matrix (list of [r,g,b]) to GRB bytes
                                 payload = bytearray()
                                 for x in range(self.width):
                                     for y in range(self.height):
                                         r, g, b = matrix[x][y]
-                                        payload.extend([g, r, b])  # GRB order
+                                        payload.extend([g, r, b])
                                 self.frame_queue.put((bytes(payload), self.brightness))
-                            else:
-                                pass
-                                # x, y = self.trans_100xy((msg['x'], msg['y']))
-                                # grb_color = html_to_grb(msg['color'])
-                                # self.draw_matrix[x][y] = grb_color
-                                # # Build GRB payload from matrix
-                                # payload = bytearray()
-                                # for x in range(self.width):
-                                #     for y in range(self.height):
-                                #         val = self.draw_matrix[x][y]
-                                #         if val == 0:
-                                #             payload.extend([0, 0, 0])
-                                #         else:
-                                #             payload.extend(val)  # Already GRB
-                                # self.frame_queue.put((bytes(payload), self.brightness))
                         except queue.Empty:
-                            pass  # No new draw events, just continue
+                            pass
                     case "static":
                         print("running static")
-                        msg = self.web_animation_queue.get()
-                        if msg.get("type") == "image":
-                            filename = msg.get("name")
-                            h5_path = f"uploaded/images/{filename}"
-                            matrix = load_h5_frame_to_matrix(h5_path)
-                            # Convert matrix to GRB bytes
-                            payload = bytearray()
-                            for x in range(self.width):
-                                for y in range(self.height):
-                                    g, r, b = matrix[y, x]  # matrix is (height, width, 3)
-                                    payload.extend([g, r, b])
-                            self.frame_queue.put((bytes(payload), self.brightness))
+                        try:
+                            msg = self.web_animation_queue.get(timeout=0.1)
+                            if msg.get("type") == "image":
+                                filename = msg.get("name")
+                                h5_path = f"uploaded/images/{filename}"
+                                matrix = load_h5_frame_to_matrix(h5_path)
+                                payload = bytearray()
+                                for x in range(self.width):
+                                    for y in range(self.height):
+                                        g, r, b = matrix[y, x]
+                                        payload.extend([g, r, b])
+                                self.frame_queue.put((bytes(payload), self.brightness))
+                        except queue.Empty:
+                            pass
                     case _:
                         #should except
                         print("invalid animation mode")
