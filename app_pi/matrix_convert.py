@@ -6,16 +6,20 @@ import numpy as np
 
 
 class MatrixConvert:
-    def __init__(self, folder="uploaded/raw", width=16, height=16, fps=30, out_folder="uploaded/images", grb=False, preview_size=128):
+    def __init__(self, folder="uploaded/raw", width=16, height=16, fps=30, grb=False, preview_size=128):
         self.folder = Path(folder)
         self.width = width
         self.height = height
         self.fps = fps
-        self.out_folder = Path(out_folder)
-        self.out_folder.mkdir(parents=True, exist_ok=True)
-        self.preview_folder = self.out_folder / "preview"
-        self.preview_folder.mkdir(parents=True, exist_ok=True)
-        self.grb = grb  # Flag to save as GRB
+        self.image_out_folder = Path("uploaded/images")
+        self.image_out_folder.mkdir(parents=True, exist_ok=True)
+        self.image_preview_folder = self.image_out_folder / "preview"
+        self.image_preview_folder.mkdir(parents=True, exist_ok=True)
+        self.anim_out_folder = Path("uploaded/animations")
+        self.anim_out_folder.mkdir(parents=True, exist_ok=True)
+        self.anim_preview_folder = self.anim_out_folder / "preview"
+        self.anim_preview_folder.mkdir(parents=True, exist_ok=True)
+        self.color_order = grb
         self.preview_size = preview_size
 
     #convert from raw and delete after process
@@ -33,6 +37,7 @@ class MatrixConvert:
                         print(f"Deleted raw file: {file}")
                     case "image/gif":
                         print(f"Processing GIF: {file.name}")
+                        self.process_gif(file)
                         # TODO: Add GIF processing here
                     case "video/mp4":
                         print(f"Processing MP4: {file.name}")
@@ -49,28 +54,56 @@ class MatrixConvert:
             for y in range(self.height):
                 for x in range(self.width):
                     r, g, b = img.getpixel((x, y))
-                    if self.grb:
-                        matrix[y, x] = [g, r, b]  # GRB order
+                    if self.color_order:
+                        matrix[y, x] = [g, r, b]
                     else:
-                        matrix[y, x] = [r, g, b]  # RGB order
-            print(f"Matrix for {file.name}:")
-            #print(matrix)
-            self.save_matrix_h5(file.stem, matrix)
-            self.save_image_preview(file.stem, img)
+                        matrix[y, x] = [r, g, b]
+            self.save_matrix_h5(file.stem, matrix[np.newaxis, ...], is_animation=False)
+            self.save_image_preview(file.stem, img, is_animation=False)
         except Exception as e:
             print(f"Error processing image {file.name}: {e}")
 
-    def save_matrix_h5(self, name, matrix):
-        out_path = self.out_folder / f"{name}.h5"
+    def process_gif(self, file):
+        try:
+            img = Image.open(file)
+            frames = []
+            frame_count = getattr(img, "n_frames", 1)
+            for frame_idx in range(frame_count):
+                img.seek(frame_idx)
+                frame = img.convert("RGB").resize((self.width, self.height), Image.LANCZOS)
+                matrix = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+                for y in range(self.height):
+                    for x in range(self.width):
+                        r, g, b = frame.getpixel((x, y))
+                        if self.color_order:
+                            matrix[y, x] = [g, r, b]
+                        else:
+                            matrix[y, x] = [r, g, b]
+                frames.append(matrix)
+            frames_np = np.stack(frames)  # shape: (num_frames, height, width, 3)
+            self.save_matrix_h5(file.stem, frames_np, is_animation=True)
+            self.save_image_preview(file.stem, img, is_animation=True)
+            print(f"Processed GIF: {file.name}, frames: {frame_count}")
+        except Exception as e:
+            print(f"Error processing GIF {file.name}: {e}")
+
+    def save_matrix_h5(self, name, matrix, is_animation=False):
+        if is_animation:
+            out_path = self.anim_out_folder / f"{name}.h5"
+        else:
+            out_path = self.image_out_folder / f"{name}.h5"
         with h5py.File(out_path, "w") as h5f:
-            h5f.create_dataset("frames", data=matrix[np.newaxis, ...])  # shape: (1, height, width, 3)
+            h5f.create_dataset("frames", data=matrix)
             h5f.attrs["matrix_size"] = (self.height, self.width)
-            h5f.attrs["num_frames"] = 1
-            h5f.attrs["color_order"] = "GRB" if self.grb else "RGB"
+            h5f.attrs["num_frames"] = matrix.shape[0] if matrix.ndim == 4 else 1
+            h5f.attrs["color_order"] = "GRB" if self.color_order else "RGB"
         print(f"Saved matrix to {out_path}")
 
-    def save_image_preview(self, name, img):
-        preview_path = self.preview_folder / f"{name}.png"
+    def save_image_preview(self, name, img, is_animation=False):
+        if is_animation:
+            preview_path = self.anim_preview_folder / f"{name}.png"
+        else:
+            preview_path = self.image_preview_folder / f"{name}.png"
         preview_img = img.resize((self.preview_size, self.preview_size), Image.NEAREST)
         preview_img.save(preview_path)
         print(f"Saved preview to {preview_path}")

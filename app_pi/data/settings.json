@@ -1,7 +1,7 @@
 {
   "Animation Mode": "draw",
-  "LED Brightness": 60,
-  "Screen Brightness": 60,
+  "LED Brightness": 5,
+  "Screen Brightness": 20,
   "Sleep Timer": 120,
   "LEDs Width": 0,
   "LEDs Height": 0,

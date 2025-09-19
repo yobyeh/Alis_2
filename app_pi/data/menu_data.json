@@ -18,13 +18,13 @@
             "LED Brightness":{
                 "link":"",
                 "action":"value",
-                "default":60,
+                "default":2,
                 "options":[
-                    20,
-                    40,
-                    60,
-                    80,
-                    100
+                    1,
+                    2,
+                    3,
+                    4,
+                    5
                 ]
             },
             "Screen Brightness":{
@@ -140,6 +140,16 @@
                 "options":[ 
                     "grb",
                     "rgb"
+                ]
+            },
+            "FPS":{
+                "link":"",
+                "action":"value",
+                "default":30,
+                "options":[ 
+                    15,
+                    30,
+                    60
                 ]
             }
         }

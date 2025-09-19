@@ -16,6 +16,7 @@ Path("uploaded/images/preview").mkdir(parents=True, exist_ok=True)
 app = FastAPI()
 app.mount("/web/images/preview", StaticFiles(directory="uploaded/images/preview"), name="preview")
 app.mount("/web", StaticFiles(directory="web"), name="web")
+app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
@@ -86,6 +87,13 @@ async def upload_file(file: UploadFile = File(...)):
 
 @app.post("/api/run_image")
 async def run_image(data: dict = Body(...)):
+    #switch animation controller to static mode
+    web_animation_queue = app.state.web_animation_queue
+    msg = {"type": "mode", "mode": "static"}
+    web_animation_queue.put(msg)
+    print("Sent static mode message to animation controller")
+
+    #send image
     name = data.get("name")
     print(f"Run image requested: {name}")
     web_animation_queue = app.state.web_animation_queue

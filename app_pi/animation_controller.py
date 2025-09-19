@@ -25,6 +25,10 @@ class AnimationController(threading.Thread):
         self.brightness = 1
         self.draw_matrix = self.new_draw_matrix()
 
+    def get_brightness(self):
+        with self.settings_lock:
+            self.brightness = self.current_settings["LED brightness"]
+
     #set new mode in current settings
     def set_mode(self):
         with self.settings_lock:
@@ -53,21 +57,18 @@ class AnimationController(threading.Thread):
     def run(self):
         try:
             while not self.shutdown_event.is_set():
-                mode_changed = False
                 msg = None
                 try:
                     msg = self.web_animation_queue.get(timeout=0.1)
                 except queue.Empty:
                     pass
 
-                # Only handle mode change messages here
+                # Handle mode change message
                 if msg and isinstance(msg, dict) and msg.get("type") == "mode":
                     self.mode = msg.get("mode")
                     self.set_mode()
-                    mode_changed = True
-
-                if mode_changed:
-                    continue  # Restart loop immediately if mode changed
+                    print(f"Mode changed to {self.mode}")
+                    continue  # Restart loop with new mode
 
                 match self.mode:
                     case "idle":
@@ -84,47 +85,38 @@ class AnimationController(threading.Thread):
                     case "show":
                         pass
                     case "draw":
-                        try:
-                            if msg == "clear":
-                                self.draw_matrix = self.new_draw_matrix()
-                                self.frame_queue.put((bytes([0, 0, 0]) * self.pixels, self.brightness))
-                                print("Canvas cleared")
-                            elif msg and isinstance(msg, dict) and msg.get("type") == "matrix":
-                                matrix = msg["matrix"]
-                                payload = bytearray()
-                                for x in range(self.width):
-                                    for y in range(self.height):
-                                        r, g, b = matrix[x][y]
-                                        payload.extend([g, r, b])
-                                self.frame_queue.put((bytes(payload), self.brightness))
-                        except queue.Empty:
-                            pass
+                        if msg == "clear":
+                            self.draw_matrix = self.new_draw_matrix()
+                            self.frame_queue.put((bytes([0, 0, 0]) * self.pixels, self.brightness))
+                            print("Canvas cleared")
+                        elif msg and isinstance(msg, dict) and msg.get("type") == "matrix":
+                            matrix = msg["matrix"]
+                            payload = bytearray()
+                            for x in range(self.width):
+                                for y in range(self.height):
+                                    r, g, b = matrix[x][y]
+                                    payload.extend([g, r, b])
+                            self.frame_queue.put((bytes(payload), self.brightness))
                     case "static":
                         print("running static")
-                        try:
-                            msg = self.web_animation_queue.get(timeout=0.1)
-                            if msg.get("type") == "image":
-                                filename = msg.get("name")
-                                h5_path = f"uploaded/images/{filename}"
-                                matrix = load_h5_frame_to_matrix(h5_path)
-                                payload = bytearray()
-                                for x in range(self.width):
-                                    for y in range(self.height):
-                                        g, r, b = matrix[y, x]
-                                        payload.extend([g, r, b])
-                                self.frame_queue.put((bytes(payload), self.brightness))
-                        except queue.Empty:
-                            pass
+                        time.sleep(0.5)
+                        if msg and isinstance(msg, dict) and msg.get("type") == "image":
+                            filename = msg.get("name")
+                            h5_path = f"uploaded/images/{filename}"
+                            matrix = load_h5_frame_to_matrix(h5_path)
+                            payload = bytearray()
+                            for x in range(self.width):
+                                for y in range(self.height):
+                                    g, r, b = matrix[y, x]
+                                    payload.extend([g, r, b])
+                            self.frame_queue.put((bytes(payload), self.brightness))
                     case _:
-                        #should except
                         print("invalid animation mode")
 
-                
                 time.sleep(0.1)
             print("Animation controller stopping...")
 
         except Exception as e:
-            # Surface exceptions from the thread
             import traceback
             print("Interface error:", e, flush=True)
             traceback.print_exc()
