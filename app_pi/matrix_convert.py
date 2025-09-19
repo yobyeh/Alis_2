@@ -4,7 +4,7 @@ from PIL import Image
 import h5py
 import numpy as np
 
-
+#hard coded W H fps
 class MatrixConvert:
     def __init__(self, folder="uploaded/raw", width=16, height=16, fps=30, grb=False, preview_size=128):
         self.folder = Path(folder)
@@ -109,8 +109,8 @@ class MatrixConvert:
         print(f"Saved preview to {preview_path}")
 
 
-def run_matrix_convert(grb=True, width=16, height=16, folder="uploaded/raw", out_folder="uploaded/images"):
-    converter = MatrixConvert(grb=grb, width=width, height=height, folder=folder, out_folder=out_folder)
+def run_matrix_convert(grb=True, width=16, height=16, folder="uploaded/raw"):
+    converter = MatrixConvert(grb=grb, width=width, height=height, folder=folder)
     converter.convert_uploaded_files()
 
 

@@ -30,12 +30,140 @@
             font-weight: bold;
             letter-spacing: 0.05em;
         }
+        .shows-container {
+            margin: 2em auto;
+            width: 90vw;
+            max-width: 700px;
+            background: #393e46;
+            border-radius: 1em;
+            padding: 1em;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        .show-item {
+            background: #23272f;
+            border-radius: 0.5em;
+            margin-bottom: 1em;
+            padding: 1em;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        .show-item:hover {
+            background: #2979ff;
+            color: #fff;
+        }
+        .show-item.selected {
+            background: #ffd600;
+            color: #222831;
+        }
+        .show-title {
+            color: #ffd600;
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 0.5em;
+        }
+        .entry-list {
+            margin-left: 1em;
+        }
+        .entry-item {
+            color: #fff;
+            margin-bottom: 0.3em;
+            font-size: 1.1em;
+            border-radius: 0.3em;
+            padding: 0.2em 0.5em;
+            background: #2c313a;
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+        .entry-type {
+            color: #2979ff;
+            font-weight: bold;
+            margin-right: 0.5em;
+        }
+        .entry-detail {
+            color: #ffd600;
+            margin-left: 0.5em;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <a href="/web/home.html">Alis</a>
     </div>
-    <!-- Page-specific content goes here -->
+    <div class="shows-container" id="showsContainer">
+        <!-- Shows will be loaded here -->
+    </div>
+    <script>
+        async function loadShows() {
+            const response = await fetch("/api/shows_list");
+            if (!response.ok) return;
+            const data = await response.json();
+            const showsContainer = document.getElementById("showsContainer");
+            showsContainer.innerHTML = "";
+            data.shows.forEach((show, showIdx) => {
+                const showDiv = document.createElement("div");
+                showDiv.className = "show-item";
+                // Make the whole show box clickable
+                showDiv.onclick = async () => {
+                    // Remove 'selected' from all show boxes
+                    document.querySelectorAll('.show-item.selected').forEach(e => e.classList.remove('selected'));
+                    showDiv.classList.add('selected');
+                    await fetch("/api/run_show_entry", {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({
+                            show_index: showIdx,
+                            show: show
+                        })
+                    });
+                };
+
+                const title = document.createElement("div");
+                title.className = "show-title";
+                title.textContent = show.name + ` (${show.width}x${show.height} ${show.shape})`;
+                showDiv.appendChild(title);
+
+                const entryList = document.createElement("div");
+                entryList.className = "entry-list";
+                show.entries.forEach((entry, entryIdx) => {
+                    const entryDiv = document.createElement("div");
+                    entryDiv.className = "entry-item";
+                    const typeSpan = document.createElement("span");
+                    typeSpan.className = "entry-type";
+                    typeSpan.textContent = entry.type;
+                    entryDiv.appendChild(typeSpan);
+
+                    const nameSpan = document.createElement("span");
+                    nameSpan.textContent = entry.name;
+                    entryDiv.appendChild(nameSpan);
+
+                    // Show details based on type
+                    if (entry.type === "animation") {
+                        const detailSpan = document.createElement("span");
+                        detailSpan.className = "entry-detail";
+                        detailSpan.textContent = `loops: ${entry.loop_count}, fps: ${entry.fps}`;
+                        entryDiv.appendChild(detailSpan);
+                    } else if (entry.type === "image") {
+                        const detailSpan = document.createElement("span");
+                        detailSpan.className = "entry-detail";
+                        detailSpan.textContent = `seconds: ${entry.seconds}`;
+                        entryDiv.appendChild(detailSpan);
+                    } else if (entry.type === "text") {
+                        const detailSpan = document.createElement("span");
+                        detailSpan.className = "entry-detail";
+                        detailSpan.textContent = `fps: ${entry.fps}`;
+                        entryDiv.appendChild(detailSpan);
+                    }
+
+                    entryList.appendChild(entryDiv);
+                });
+                showDiv.appendChild(entryList);
+                showsContainer.appendChild(showDiv);
+            });
+        }
+        loadShows();
+    </script>
 </body>
 </html>

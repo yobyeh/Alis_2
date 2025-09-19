@@ -1,0 +1,47 @@
+{
+  "shows": [
+    {
+      "name": "Show 1",
+      "height": 16,
+      "width": 16,
+      "shape": "square",
+      "entries": [
+        {
+          "type": "animation",
+          "name": "rainbow.h5",
+          "loop_count": 3,
+          "fps": 15
+        },
+        {
+          "type": "image",
+          "name": "smile.h5",
+          "seconds": 5
+        },
+        {
+          "type": "text",
+          "name": "Hello World!",
+          "fps": 10
+        }
+      ]
+    },
+    {
+      "name": "Show 2",
+      "height": 16,
+      "width": 16,
+      "shape": "square",
+      "entries": [
+        {
+          "type": "animation",
+          "name": "fireworks.h5",
+          "loop_count": 1,
+          "fps": 20
+        },
+        {
+          "type": "image",
+          "name": "star.h5",
+          "seconds": 3
+        }
+      ]
+    }
+  ]
+}

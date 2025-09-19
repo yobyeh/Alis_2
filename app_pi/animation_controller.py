@@ -23,6 +23,7 @@ class AnimationController(threading.Thread):
         self.width = 16
         self.height = 16
         self.brightness = 1
+        self.frame_count = 0
         self.draw_matrix = self.new_draw_matrix()
 
     def get_brightness(self):
@@ -68,12 +69,13 @@ class AnimationController(threading.Thread):
                     self.mode = msg.get("mode")
                     self.set_mode()
                     print(f"Mode changed to {self.mode}")
+                    self.frame_count = 0
                     continue  # Restart loop with new mode
 
                 match self.mode:
                     case "idle":
                         print("animation controller idle")
-                        time.sleep(3.0)
+                        time.sleep(5.0)
                     case "test":
                         print("animation controller test")
                         self.frame_queue.put((bytes([0, 255, 0]) * self.pixels, self.brightness))
@@ -86,7 +88,6 @@ class AnimationController(threading.Thread):
                         pass
                     case "draw":
                         if msg == "clear":
-                            self.draw_matrix = self.new_draw_matrix()
                             self.frame_queue.put((bytes([0, 0, 0]) * self.pixels, self.brightness))
                             print("Canvas cleared")
                         elif msg and isinstance(msg, dict) and msg.get("type") == "matrix":
@@ -110,10 +111,46 @@ class AnimationController(threading.Thread):
                                     g, r, b = matrix[y, x]
                                     payload.extend([g, r, b])
                             self.frame_queue.put((bytes(payload), self.brightness))
+                    case "animation":
+                        # Store loaded animation frames and frame count
+                        if not hasattr(self, "animation_frames"):
+                            self.animation_frames = None
+                            self.frame_count = 0
+                            self.animation_name = None
+                            self.animation_index = 0
+
+                        # If a new animation message arrives, load the animation
+                        if msg and isinstance(msg, dict) and msg.get("type") == "animation":
+                            filename = msg.get("name")
+                            h5_path = f"uploaded/animations/{filename}"
+                            print("new animation")
+                            with h5py.File(h5_path, "r") as h5f:
+                                if "frames" not in h5f:
+                                    raise ValueError(f"No 'frames' dataset in {h5_path}")
+                                frames = h5f["frames"]
+                                print("frames type:", type(frames))
+                                if not isinstance(frames, h5py.Dataset):
+                                    raise TypeError(f"'frames' is not a dataset in {h5_path}, got {type(frames)}")
+                                self.animation_frames = np.array(frames)
+                                self.frame_count = self.animation_frames.shape[0]
+                                self.animation_name = filename
+                                self.animation_index = 0
+                                print(f"Animation {filename} has {self.frame_count} frames")
+
+                        # If animation is loaded, loop through frames
+                        if self.animation_frames is not None and self.frame_count > 0:
+                            matrix = self.animation_frames[self.animation_index]
+                            payload = bytearray()
+                            for x in range(self.width):
+                                for y in range(self.height):
+                                    g, r, b = matrix[y, x]
+                                    payload.extend([g, r, b])
+                            self.frame_queue.put((bytes(payload), self.brightness))
+                            self.animation_index = (self.animation_index + 1) % self.frame_count
                     case _:
                         print("invalid animation mode")
 
-                time.sleep(0.1)
+                time.sleep(0.05) # frame rate
             print("Animation controller stopping...")
 
         except Exception as e:
