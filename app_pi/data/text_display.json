@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Hello World!",
+    "height": 16,
+    "width": 32,
+    "color": "#ffd600",
+    "fps": 10
+  },
+  {
+    "name": "Welcome!",
+    "height": 8,
+    "width": 16,
+    "color": "#2979ff",
+    "fps": 15
+  }
+]

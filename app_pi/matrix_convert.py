@@ -38,7 +38,6 @@ class MatrixConvert:
                     case "image/gif":
                         print(f"Processing GIF: {file.name}")
                         self.process_gif(file)
-                        # TODO: Add GIF processing here
                     case "video/mp4":
                         print(f"Processing MP4: {file.name}")
                         # TODO: Add MP4 processing here

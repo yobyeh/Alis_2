@@ -160,6 +160,53 @@ async def run_show_entry(data: dict = Body(...)):
     web_animation_queue.put({"type": "show_entry", "data": data})
     return {"status": "ok"}
 
+@app.get("/api/text_list")
+async def text_list():
+    import json
+    text_path = Path("uploaded/text/text.json")
+    if not text_path.exists():
+        return JSONResponse([])
+    with open(text_path, "r") as f:
+        text_data = json.load(f)
+    # Ensure each entry has name, width, height
+    for entry in text_data:
+        entry["width"] = int(entry.get("width", 16))
+        entry["height"] = int(entry.get("height", 16))
+    return JSONResponse(text_data)
+
+@app.post("/api/save_show")
+async def save_show(data: dict = Body(...)):
+    import json
+    shows_path = Path("data/shows.json")
+    # Load existing shows
+    if shows_path.exists():
+        with open(shows_path, "r") as f:
+            shows_data = json.load(f)
+    else:
+        shows_data = {"shows": []}
+    # Check for duplicate name
+    for idx, show in enumerate(shows_data["shows"]):
+        if show["name"] == data["name"]:
+            return JSONResponse({"error": "Show name already exists."}, status_code=400)
+    # Add or update show
+    shows_data["shows"].append(data)
+    with open(shows_path, "w") as f:
+        json.dump(shows_data, f, indent=2)
+    return {"status": "saved"}
+
+@app.post("/api/delete_show")
+async def delete_show(data: dict = Body(...)):
+    import json
+    shows_path = Path("data/shows.json")
+    if not shows_path.exists():
+        return JSONResponse({"error": "No shows file."}, status_code=404)
+    with open(shows_path, "r") as f:
+        shows_data = json.load(f)
+    shows_data["shows"] = [s for s in shows_data["shows"] if s["name"] != data.get("name")]
+    with open(shows_path, "w") as f:
+        json.dump(shows_data, f, indent=2)
+    return {"status": "deleted"}
+
 if __name__ == "__main__":
     uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=True)
 

@@ -2,9 +2,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Alis</title>
-    <link rel="icon" href="/assets/favicon.png">
+    <title>Create/Edit Shows</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/assets/favicon.png">
     <style>
         body {
             margin: 0;
@@ -30,12 +30,422 @@
             font-weight: bold;
             letter-spacing: 0.05em;
         }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 1em;
+        }
+        .field {
+            margin-bottom: 1em;
+        }
+        label {
+            color: #ffd600;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 0.3em;
+        }
+        input, select {
+            width: 100%;
+            font-size: 1.1em;
+            padding: 0.4em;
+            border-radius: 0.5em;
+            border: none;
+            margin-bottom: 0.3em;
+        }
+        .entry-type-btns {
+            display: flex;
+            gap: 0.5em;
+            margin-bottom: 1em;
+        }
+        .entry-type-btn {
+            flex: 1;
+            padding: 0.6em;
+            border-radius: 0.5em;
+            border: none;
+            background: #393e46;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .entry-type-btn.active {
+            background: #2979ff;
+            color: #fff;
+        }
+        .entry-list {
+            margin-top: 1em;
+        }
+        .entry-tile {
+            background: #393e46;
+            color: #fff;
+            border-radius: 0.5em;
+            padding: 0.7em;
+            margin-bottom: 0.5em;
+            display: flex;
+            align-items: center;
+            gap: 0.7em;
+            touch-action: pan-y;
+        }
+        .entry-tile .move-btn {
+            background: #23272f;
+            color: #ffd600;
+            border: none;
+            border-radius: 0.3em;
+            font-size: 1.2em;
+            cursor: pointer;
+            padding: 0.2em 0.5em;
+        }
+        .entry-tile .delete-btn {
+            background: #ff1744;
+            color: #fff;
+            border: none;
+            border-radius: 0.3em;
+            font-size: 1.2em;
+            cursor: pointer;
+            padding: 0.2em 0.5em;
+        }
+        .show-list {
+            margin-bottom: 2em;
+        }
+        .show-item {
+            background: #23272f;
+            color: #fff;
+            border-radius: 0.5em;
+            padding: 0.7em;
+            margin-bottom: 0.5em;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .show-item .edit-btn, .show-item .delete-btn {
+            background: #2979ff;
+            color: #fff;
+            border: none;
+            border-radius: 0.3em;
+            font-size: 1em;
+            cursor: pointer;
+            padding: 0.2em 0.7em;
+            margin-left: 0.5em;
+        }
+        .show-item .delete-btn {
+            background: #ff1744;
+        }
+        .error-msg {
+            color: #ff1744;
+            font-weight: bold;
+            margin-bottom: 1em;
+        }
+        .save-btn {
+            width: 100%;
+            background: #ffd600;
+            color: #222831;
+            border: none;
+            border-radius: 0.5em;
+            font-size: 1.2em;
+            font-weight: bold;
+            padding: 0.7em;
+            margin-top: 1em;
+            cursor: pointer;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 0.3em;
+            }
+            .entry-tile, .show-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <a href="/web/home.html">Alis</a>
     </div>
-    <!-- Page-specific content goes here -->
+    <div class="container">
+        <h2 style="color:#ffd600;">Create/Edit Shows</h2>
+        <div id="errorMsg" class="error-msg" style="display:none;"></div>
+        <div class="show-list" id="showList"></div>
+        <form id="showForm" autocomplete="off">
+            <div class="field">
+                <label for="showName">Show Name</label>
+                <input type="text" id="showName" required maxlength="32">
+            </div>
+            <div class="field" style="display:flex; gap:1em;">
+                <div style="flex:1;">
+                    <label for="showWidth">Width</label>
+                    <input type="number" id="showWidth" min="1" max="128" required>
+                </div>
+                <div style="flex:1;">
+                    <label for="showHeight">Height</label>
+                    <input type="number" id="showHeight" min="1" max="128" required>
+                </div>
+            </div>
+            <div class="field">
+                <label for="showShape">Shape</label>
+                <select id="showShape">
+                    <option value="square">Square</option>
+                    <option value="triangle">Triangle</option>
+                </select>
+            </div>
+            <div class="entry-type-btns">
+                <button type="button" class="entry-type-btn active" id="staticBtn">Static</button>
+                <button type="button" class="entry-type-btn" id="animationBtn">Animation</button>
+                <button type="button" class="entry-type-btn" id="textBtn">Text</button>
+            </div>
+            <div id="entryOptions"></div>
+            <div class="entry-list" id="entryList"></div>
+            <button type="button" class="save-btn" id="saveBtn">Save Show</button>
+        </form>
+    </div>
+    <script>
+        let shows = [];
+        let editingIndex = null;
+        let entryType = "static";
+        let staticOptions = [];
+        let animationOptions = [];
+        let textOptions = [];
+        let showEntries = [];
+
+        // Fetch all shows
+        async function loadShows() {
+            const res = await fetch("/api/shows_list");
+            if (!res.ok) return;
+            const data = await res.json();
+            shows = data.shows || [];
+            renderShowList();
+        }
+
+        function renderShowList() {
+            const showList = document.getElementById("showList");
+            showList.innerHTML = "";
+            shows.forEach((show, idx) => {
+                const div = document.createElement("div");
+                div.className = "show-item";
+                div.innerHTML = `<span>${show.name} (${show.width}x${show.height} ${show.shape})</span>`;
+                const editBtn = document.createElement("button");
+                editBtn.className = "edit-btn";
+                editBtn.textContent = "Edit";
+                editBtn.onclick = () => loadShowForEdit(idx);
+                const delBtn = document.createElement("button");
+                delBtn.className = "delete-btn";
+                delBtn.textContent = "Delete";
+                delBtn.onclick = async () => {
+                    if (confirm(`Delete show "${show.name}"?`)) {
+                        await fetch("/api/delete_show", {
+                            method: "POST",
+                            headers: {"Content-Type": "application/json"},
+                            body: JSON.stringify({name: show.name})
+                        });
+                        loadShows();
+                        resetForm();
+                    }
+                };
+                div.appendChild(editBtn);
+                div.appendChild(delBtn);
+                showList.appendChild(div);
+            });
+        }
+
+        function resetForm() {
+            editingIndex = null;
+            document.getElementById("showName").value = "";
+            document.getElementById("showWidth").value = "";
+            document.getElementById("showHeight").value = "";
+            document.getElementById("showShape").value = "square";
+            showEntries = [];
+            renderEntryList();
+            document.getElementById("errorMsg").style.display = "none";
+        }
+
+        function loadShowForEdit(idx) {
+            editingIndex = idx;
+            const show = shows[idx];
+            document.getElementById("showName").value = show.name;
+            document.getElementById("showWidth").value = show.width;
+            document.getElementById("showHeight").value = show.height;
+            document.getElementById("showShape").value = show.shape;
+            showEntries = (show.entries || []).map(e => ({...e}));
+            renderEntryList();
+            document.getElementById("errorMsg").style.display = "none";
+        }
+
+        // Entry type switching
+        document.getElementById("staticBtn").onclick = () => switchEntryType("static");
+        document.getElementById("animationBtn").onclick = () => switchEntryType("animation");
+        document.getElementById("textBtn").onclick = () => switchEntryType("text");
+
+        function switchEntryType(type) {
+            entryType = type;
+            document.querySelectorAll(".entry-type-btn").forEach(btn => btn.classList.remove("active"));
+            document.getElementById(type + "Btn").classList.add("active");
+            renderEntryOptions();
+        }
+
+        // Fetch options for entries
+        async function loadEntryOptions() {
+            const [imgRes, animRes, textRes] = await Promise.all([
+                fetch("/api/image_list"),
+                fetch("/api/animation_list"),
+                fetch("/api/text_list")
+            ]);
+            staticOptions = imgRes.ok ? await imgRes.json() : [];
+            animationOptions = animRes.ok ? await animRes.json() : [];
+            textOptions = textRes.ok ? await textRes.json() : [];
+            renderEntryOptions();
+        }
+
+        function renderEntryOptions() {
+            const entryOptions = document.getElementById("entryOptions");
+            entryOptions.innerHTML = "";
+            let options = [];
+            if (entryType === "static") options = staticOptions;
+            if (entryType === "animation") options = animationOptions;
+            if (entryType === "text") options = textOptions;
+
+            // Build select dropdown
+            const select = document.createElement("select");
+            select.id = "entrySelect";
+            select.style.width = "100%";
+            options.forEach(opt => {
+                const o = document.createElement("option");
+                o.value = opt.name;
+                o.textContent = `${opt.name.replace(/\.h5$/, "")} (${opt.width}x${opt.height})`;
+                select.appendChild(o);
+            });
+            entryOptions.appendChild(select);
+
+            // Parameter fields
+            if (entryType === "animation") {
+                entryOptions.innerHTML += `
+                    <div class="field"><label for="entryLoop">Loop Count</label>
+                    <input type="number" id="entryLoop" min="1" max="99" value="1"></div>
+                    <div class="field"><label for="entryFps">FPS</label>
+                    <input type="number" id="entryFps" min="1" max="60" value="15"></div>
+                `;
+            } else if (entryType === "static") {
+                entryOptions.innerHTML += `
+                    <div class="field"><label for="entrySeconds">Seconds to Show</label>
+                    <input type="number" id="entrySeconds" min="1" max="99" value="5"></div>
+                `;
+            } else if (entryType === "text") {
+                entryOptions.innerHTML += `
+                    <div class="field"><label for="entryFps">FPS</label>
+                    <input type="number" id="entryFps" min="1" max="60" value="10"></div>
+                `;
+            }
+
+            // Add button
+            const addBtn = document.createElement("button");
+            addBtn.type = "button";
+            addBtn.className = "save-btn";
+            addBtn.style.background = "#2979ff";
+            addBtn.style.color = "#fff";
+            addBtn.style.marginTop = "0.5em";
+            addBtn.textContent = "Add Entry";
+            addBtn.onclick = () => addEntry(options);
+            entryOptions.appendChild(addBtn);
+        }
+
+        function addEntry(options) {
+            const select = document.getElementById("entrySelect");
+            if (!select || !select.value) return;
+            const opt = options.find(o => o.name === select.value);
+            if (!opt) return;
+            let entry = { type: entryType, name: opt.name, width: opt.width, height: opt.height };
+            if (entryType === "animation") {
+                entry.loop_count = parseInt(document.getElementById("entryLoop").value) || 1;
+                entry.fps = parseInt(document.getElementById("entryFps").value) || 15;
+            } else if (entryType === "static") {
+                entry.seconds = parseInt(document.getElementById("entrySeconds").value) || 5;
+            } else if (entryType === "text") {
+                entry.fps = parseInt(document.getElementById("entryFps").value) || 10;
+            }
+            showEntries.push(entry);
+            renderEntryList();
+        }
+
+        function renderEntryList() {
+            const entryList = document.getElementById("entryList");
+            entryList.innerHTML = "";
+            showEntries.forEach((entry, idx) => {
+                const div = document.createElement("div");
+                div.className = "entry-tile";
+                div.innerHTML = `<span>${entry.type.toUpperCase()}: ${entry.name.replace(/\.h5$/, "")} (${entry.width}x${entry.height})</span>`;
+                if (entry.type === "animation") {
+                    div.innerHTML += `<span>Loops: ${entry.loop_count}, FPS: ${entry.fps}</span>`;
+                } else if (entry.type === "static") {
+                    div.innerHTML += `<span>Seconds: ${entry.seconds}</span>`;
+                } else if (entry.type === "text") {
+                    div.innerHTML += `<span>FPS: ${entry.fps}</span>`;
+                }
+                // Move up/down buttons
+                const upBtn = document.createElement("button");
+                upBtn.className = "move-btn";
+                upBtn.textContent = "↑";
+                upBtn.onclick = () => moveEntry(idx, -1);
+                const downBtn = document.createElement("button");
+                downBtn.className = "move-btn";
+                downBtn.textContent = "↓";
+                downBtn.onclick = () => moveEntry(idx, 1);
+                div.appendChild(upBtn);
+                div.appendChild(downBtn);
+                // Delete button
+                const delBtn = document.createElement("button");
+                delBtn.className = "delete-btn";
+                delBtn.textContent = "✕";
+                delBtn.onclick = () => { showEntries.splice(idx, 1); renderEntryList(); };
+                div.appendChild(delBtn);
+                entryList.appendChild(div);
+            });
+        }
+
+        function moveEntry(idx, dir) {
+            const newIdx = idx + dir;
+            if (newIdx < 0 || newIdx >= showEntries.length) return;
+            const temp = showEntries[newIdx];
+            showEntries[newIdx] = showEntries[idx];
+            showEntries[idx] = temp;
+            renderEntryList();
+        }
+
+        // Save show
+        document.getElementById("saveBtn").onclick = async () => {
+            const name = document.getElementById("showName").value.trim();
+            const width = parseInt(document.getElementById("showWidth").value);
+            const height = parseInt(document.getElementById("showHeight").value);
+            const shape = document.getElementById("showShape").value;
+            if (!name || !width || !height || showEntries.length === 0) {
+                showError("Please fill all fields and add at least one entry.");
+                return;
+            }
+            // Check for duplicate name
+            if (shows.some((s, idx) => s.name === name && idx !== editingIndex)) {
+                showError("A show with this name already exists.");
+                return;
+            }
+            const newShow = { name, width, height, shape, entries: showEntries.map(e => ({...e})) };
+            const res = await fetch("/api/save_show", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(newShow)
+            });
+            if (res.ok) {
+                loadShows();
+                resetForm();
+            } else {
+                showError("Failed to save show.");
+            }
+        };
+
+        function showError(msg) {
+            const errorMsg = document.getElementById("errorMsg");
+            errorMsg.textContent = msg;
+            errorMsg.style.display = "block";
+        }
+
+        // Initial load
+        loadShows();
+        loadEntryOptions();
+    </script>
 </body>
 </html>

@@ -25,21 +25,40 @@
       ]
     },
     {
-      "name": "Show 2",
-      "height": 16,
+      "name": "test test",
       "width": 16,
+      "height": 16,
       "shape": "square",
       "entries": [
         {
-          "type": "animation",
-          "name": "fireworks.h5",
-          "loop_count": 1,
-          "fps": 20
+          "type": "static",
+          "name": "dino.h5",
+          "width": 16,
+          "height": 16,
+          "seconds": 5
         },
         {
-          "type": "image",
-          "name": "star.h5",
-          "seconds": 3
+          "type": "animation",
+          "name": "fire1.h5",
+          "width": 16,
+          "height": 16,
+          "loop_count": 5,
+          "fps": 15
+        },
+        {
+          "type": "animation",
+          "name": "circle.h5",
+          "width": 16,
+          "height": 16,
+          "loop_count": 5,
+          "fps": 15
+        },
+        {
+          "type": "static",
+          "name": "mush.h5",
+          "width": 16,
+          "height": 16,
+          "seconds": 5
         }
       ]
     }
