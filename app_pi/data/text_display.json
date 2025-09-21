@@ -2,15 +2,17 @@
   {
     "name": "Hello World!",
     "height": 16,
-    "width": 32,
+    "width": 16,
     "color": "#ffd600",
-    "fps": 10
+    "scroll speed": 10,
+    "font size": 40
   },
   {
-    "name": "Welcome!",
-    "height": 8,
+    "name": "WAAAAAAAAAAAAAA!",
+    "height": 16,
     "width": 16,
     "color": "#2979ff",
-    "fps": 15
+    "scorll speed": 2,
+    "font size": 40
   }
 ]

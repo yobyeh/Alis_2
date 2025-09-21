@@ -99,6 +99,7 @@
     <div class="top-buttons">
         <button id="staticBtn" class="active">Static</button>
         <button id="animationBtn">Animation</button>
+        <button id="textBtn">Text</button>
     </div>
     <div style="position:absolute; top:20px; right:30px;">
         <label for="sizeFilter" style="color:#fff; font-weight:bold;">Size:</label>
@@ -117,28 +118,48 @@
             <!-- Animations will be loaded here -->
         </div>
     </div>
+    <div class="list-container hidden" id="textList">
+        <div class="image-list" id="textImageList">
+            <!-- Text entries will be loaded here -->
+        </div>
+    </div>
     <script>
         // Button toggle logic
         const staticBtn = document.getElementById("staticBtn");
         const animationBtn = document.getElementById("animationBtn");
+        const textBtn = document.getElementById("textBtn");
         const staticList = document.getElementById("staticList");
         const animationList = document.getElementById("animationList");
+        const textList = document.getElementById("textList");
 
         staticBtn.onclick = () => {
             staticBtn.classList.add("active");
             animationBtn.classList.remove("active");
+            textBtn.classList.remove("active");
             staticList.classList.remove("hidden");
             animationList.classList.add("hidden");
+            textList.classList.add("hidden");
         };
         animationBtn.onclick = () => {
             animationBtn.classList.add("active");
             staticBtn.classList.remove("active");
+            textBtn.classList.remove("active");
             animationList.classList.remove("hidden");
             staticList.classList.add("hidden");
+            textList.classList.add("hidden");
+        };
+        textBtn.onclick = () => {
+            textBtn.classList.add("active");
+            staticBtn.classList.remove("active");
+            animationBtn.classList.remove("active");
+            textList.classList.remove("hidden");
+            staticList.classList.add("hidden");
+            animationList.classList.add("hidden");
         };
 
         let allImages = [];
         let allAnimations = [];
+        let allText = [];
         let availableSizes = new Set();
 
         // Load image list from backend
@@ -162,6 +183,18 @@
                 availableSizes.add(`${anim.width}x${anim.height}`);
             });
             renderAnimations();
+            populateSizeFilter();
+        }
+
+        // Load text list from backend
+        async function loadText() {
+            const response = await fetch("/api/text_list");
+            if (!response.ok) return;
+            allText = await response.json();
+            allText.forEach(txt => {
+                availableSizes.add(`${txt.width}x${txt.height}`);
+            });
+            renderText();
             populateSizeFilter();
         }
 
@@ -225,6 +258,33 @@
                 });
         }
 
+        function renderText() {
+            const textImageList = document.getElementById("textImageList");
+            textImageList.innerHTML = "";
+            const selectedSize = document.getElementById("sizeFilter").value;
+            allText
+                .filter(txt => selectedSize === "all" || `${txt.width}x${txt.height}` === selectedSize)
+                .forEach(txt => {
+                    const item = document.createElement("div");
+                    item.className = "image-item";
+                    item.style.cursor = "pointer";
+                    // No preview image, just show text and size
+                    const name = document.createElement("span");
+                    name.textContent = `${txt.name} (${txt.width}x${txt.height})`;
+                    item.appendChild(name);
+                    item.onclick = async () => {
+                        item.style.background = "#2979ff";
+                        item.style.color = "#fff";
+                        await fetch("/api/run_text", {
+                            method: "POST",
+                            headers: {"Content-Type": "application/json"},
+                            body: JSON.stringify({name: txt.name})
+                        });
+                    };
+                    textImageList.appendChild(item);
+                });
+        }
+
         function populateSizeFilter() {
             const sizeFilter = document.getElementById("sizeFilter");
             // Only add sizes if not already populated
@@ -240,11 +300,13 @@
         document.getElementById("sizeFilter").onchange = () => {
             renderImages();
             renderAnimations();
+            renderText();
         };
 
         // Initial load
         loadImages();
         loadAnimations();
+        loadText();
     </script>
 </body>
 </html>

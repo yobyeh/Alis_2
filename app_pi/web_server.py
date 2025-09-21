@@ -86,9 +86,9 @@ async def ws_draw(websocket: WebSocket):
             try:
                 import json
                 msg = json.loads(data)
-                if msg.get("type") == "color":
-                    print(f"Color changed to {msg['color']}", flush=True)
-                elif msg.get("type") == "matrix":
+                # if msg.get("type") == "color":
+                #     print(f"Color changed to {msg['color']}", flush=True)
+                if msg.get("type") == "matrix":
                     print("Received matrix", flush=True)
                     web_animation_queue.put(msg)  # Send the whole matrix to animation controller
                 elif msg.get("type") == "clear":
@@ -141,6 +141,20 @@ async def run_animation(data: dict = Body(...)):
     web_animation_queue.put({"type": "animation", "name": name})
     return {"status": "ok", "name": name}
 
+@app.post("/api/run_text")
+async def run_text(data: dict = Body(...)):
+    # Switch animation controller to text mode
+    web_animation_queue = app.state.web_animation_queue
+    msg = {"type": "mode", "mode": "text"}
+    web_animation_queue.put(msg)
+    print("Sent text mode message to animation controller")
+
+    # Send text entry name
+    name = data.get("name")
+    print(f"Run text requested: {name}")
+    web_animation_queue.put({"type": "text", "text": name})
+    return {"status": "ok", "name": name}
+
 @app.get("/api/shows_list")
 async def shows_list():
     import json
@@ -157,21 +171,18 @@ async def run_show_entry(data: dict = Body(...)):
     print(f"Show entry selected: {data}")
     # Example: send to animation controller queue
     web_animation_queue = app.state.web_animation_queue
+    web_animation_queue.put({"type": "mode", "mode": "show"})
     web_animation_queue.put({"type": "show_entry", "data": data})
     return {"status": "ok"}
 
 @app.get("/api/text_list")
 async def text_list():
     import json
-    text_path = Path("uploaded/text/text.json")
+    text_path = Path("data/text_display.json")
     if not text_path.exists():
         return JSONResponse([])
     with open(text_path, "r") as f:
         text_data = json.load(f)
-    # Ensure each entry has name, width, height
-    for entry in text_data:
-        entry["width"] = int(entry.get("width", 16))
-        entry["height"] = int(entry.get("height", 16))
     return JSONResponse(text_data)
 
 @app.post("/api/save_show")

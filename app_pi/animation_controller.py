@@ -6,6 +6,8 @@ import threading
 from multiprocessing import Queue
 import h5py
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+import json
 
 #hard coded pixels init and brightness 
 
@@ -23,8 +25,16 @@ class AnimationController(threading.Thread):
         self.width = 16
         self.height = 16
         self.brightness = 1
-        self.frame_count = 0
-        self.draw_matrix = self.new_draw_matrix()
+
+        #animantion tracking
+        self.animation_frames = None
+        self.animation_name = None
+        self.animation_index = 0
+        self.total_frames = 0
+
+        #scrolling text
+        self.display_text = ""
+        #self.draw_matrix = self.new_draw_matrix()
 
     def get_brightness(self):
         with self.settings_lock:
@@ -38,15 +48,15 @@ class AnimationController(threading.Thread):
     def convert_html_to_GRB(self):
         pass
     
-    #make blank draw matrix
-    def new_draw_matrix(self):
-        matrix = []
-        for x in range(self.width):
-            row = []
-            for y in range(self.height):
-                row.append(0)
-            matrix.append(row)
-        return matrix
+    # #make blank draw matrix
+    # def new_draw_matrix(self):
+    #     matrix = []
+    #     for x in range(self.width):
+    #         row = []
+    #         for y in range(self.height):
+    #             row.append(0)
+    #         matrix.append(row)
+    #     return matrix
 
     #transform xy limit 100 to current pixels 
     def trans_100xy(self, xy):
@@ -54,6 +64,26 @@ class AnimationController(threading.Thread):
         px = round(x / 100 * (self.width - 1))
         py = round(y / 100 * (self.height - 1))
         return px, py
+    
+    def render_scrolling_text(self, text, width, height, color="#ffd600", font_size=32, scroll_speed=1):
+        # Render text to a long image
+        img = Image.new("RGB", (width*8 + len(text)*font_size, height*4), (0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size)
+        w, h = draw.textsize(text, font=font)
+        draw.text((width*4, (img.height-h)//2), text, font=font, fill=color)
+        # Scroll window across the image
+        frames = []
+        for offset in range(0, img.width-width+1, scroll_speed):
+            frame = img.crop((offset, 0, offset+width, height*4))
+            frame_small = frame.resize((width, height), Image.LANCZOS)
+            arr = np.array(frame_small)
+            grb_arr = np.zeros_like(arr)
+            grb_arr[..., 0] = arr[..., 1]  # G
+            grb_arr[..., 1] = arr[..., 0]  # R
+            grb_arr[..., 2] = arr[..., 2]  # B
+            frames.append(grb_arr)
+        return frames
 
     def run(self):
         try:
@@ -84,8 +114,6 @@ class AnimationController(threading.Thread):
                         time.sleep(2)
                         self.frame_queue.put((bytes([0, 0, 255]) * self.pixels, self.brightness))
                         time.sleep(2)
-                    case "show":
-                        pass
                     case "draw":
                         if msg == "clear":
                             self.frame_queue.put((bytes([0, 0, 0]) * self.pixels, self.brightness))
@@ -112,13 +140,6 @@ class AnimationController(threading.Thread):
                                     payload.extend([g, r, b])
                             self.frame_queue.put((bytes(payload), self.brightness))
                     case "animation":
-                        # Store loaded animation frames and frame count
-                        if not hasattr(self, "animation_frames"):
-                            self.animation_frames = None
-                            self.frame_count = 0
-                            self.animation_name = None
-                            self.animation_index = 0
-
                         # If a new animation message arrives, load the animation
                         if msg and isinstance(msg, dict) and msg.get("type") == "animation":
                             filename = msg.get("name")
@@ -132,7 +153,7 @@ class AnimationController(threading.Thread):
                                 if not isinstance(frames, h5py.Dataset):
                                     raise TypeError(f"'frames' is not a dataset in {h5_path}, got {type(frames)}")
                                 self.animation_frames = np.array(frames)
-                                self.frame_count = self.animation_frames.shape[0]
+                                self.total_frames = self.animation_frames.shape[0]
                                 self.animation_name = filename
                                 self.animation_index = 0
                                 print(f"Animation {filename} has {self.frame_count} frames")
@@ -147,6 +168,40 @@ class AnimationController(threading.Thread):
                                     payload.extend([g, r, b])
                             self.frame_queue.put((bytes(payload), self.brightness))
                             self.animation_index = (self.animation_index + 1) % self.frame_count
+                    case "text":
+                        # If a new text message arrives, set the display text
+                        if msg and isinstance(msg, dict) and msg.get("type") == "text":
+                            self.display_text = msg.get("name")
+
+                        # Load parameters from text_display.json
+                        text_params = None
+                        if self.display_text:
+                            with open("data/text_display.json", "r") as f:
+                                text_entries = json.load(f)
+                            for entry in text_entries:
+                                if entry.get("name") == self.display_text:
+                                    text_params = entry
+                                    break
+
+                        if text_params:
+                            text_height = int(text_params.get("height", self.height))
+                            text_width = int(text_params.get("width", self.width))
+                            text_color = text_params.get("color", "#ffd600")
+                            font_size = int(text_params.get("font size", 32))
+                            scroll_speed = int(text_params.get("scroll speed", 2))
+                            frames = self.render_scrolling_text(
+                                self.display_text, text_width, text_height, text_color, font_size, scroll_speed
+                            )
+                            for frame in frames:
+                                payload = bytearray()
+                                for x in range(text_width):
+                                    for y in range(text_height):
+                                        g, r, b = frame[y, x]
+                                        payload.extend([g, r, b])
+                                self.frame_queue.put((bytes(payload), self.brightness))
+                                time.sleep(0.05)
+                        else:
+                            print("No matching text entry found or no text to display")
                     case _:
                         print("invalid animation mode")
 

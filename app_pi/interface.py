@@ -60,6 +60,8 @@ def start_interface(current_settings: dict, shutdown_event: threading.Event, set
 
     lcd = None
     buttons = {}
+    with settings_lock:
+        sleep_timer = current_settings["Sleep Timer"]
     try:
         #setup LCD
         lcd = LCD_2inch()
@@ -82,12 +84,29 @@ def start_interface(current_settings: dict, shutdown_event: threading.Event, set
             btn.when_pressed = lambda n=name:menu.move_pointer(n)
 
         # --- main loop ---
-        while not shutdown_event.is_set():
+        last_activity = time.time()
+        display_on = True
 
-            #draw the menu on screen if button flag
-            if menu.get_change() == 1:
+        while not shutdown_event.is_set():
+            menu_change = menu.get_change()
+
+            # If menu_change, update last_activity
+            if menu_change == 1:
+                last_activity = time.time()
+                # If display is off, turn it back on and reset timer
+                if not display_on:
+                    lcd.bl_DutyCycle(current_settings["Screen Brightness"])
+                    display_on = True
+                    print("Display turned ON", flush=True)
                 show_menu(lcd, menu, screen)
-            
+
+            # If no activity for sleep_timer seconds, turn off display
+            if display_on and (time.time() - last_activity > sleep_timer):
+                lcd.ShowImage(screen.clear_screen())
+                lcd.bl_DutyCycle(0)
+                display_on = False
+                print("Display turned OFF (sleep)", flush=True)
+
             # Wait up to RENDER_INTERVAL, but break early if shutdown requested
             if shutdown_event.wait(RENDER_INTERVAL):
                 break

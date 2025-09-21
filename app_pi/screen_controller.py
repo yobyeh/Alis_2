@@ -88,3 +88,7 @@ class ScreenController:
         select_end   = 65
         draw.rectangle([1, select_start + selection * 30, self.height-1, select_end + selection * 30], outline=(0, 221, 255), fill=None, width=2)
         return img
+
+    def clear_screen(self):
+        """Return a blank (black) image for clearing the display."""
+        return Image.new("RGB", (self.height, self.width), (0,0,0))  # type: ignore

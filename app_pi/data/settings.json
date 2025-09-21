@@ -1,8 +1,8 @@
 {
-  "Animation Mode": "animation",
+  "Animation Mode": "text",
   "LED Brightness": 5,
-  "Screen Brightness": 20,
-  "Sleep Timer": 120,
+  "Screen Brightness": 60,
+  "Sleep Timer": 5,
   "LEDs Width": 0,
   "LEDs Height": 0,
   "Signal Start": "top L",
