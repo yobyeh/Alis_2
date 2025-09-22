@@ -64,11 +64,6 @@ Pipfile.lock
 # mypy
 .mypy_cache/
 
-# Swift / iOS ignores
-# Xcode
-build/
-DerivedData/
-
 # Workspace and project files
 *.xcworkspace/
 *.xcodeproj/*
@@ -105,13 +100,20 @@ fastlane/Preview.html
 fastlane/screenshots/
 fastlane/test_output
 
+# Ignore all contents of uploaded/ but keep folders and .gitkeep files
 uploaded/*
 !uploaded/.gitkeep
 !uploaded/animations/
+!uploaded/animations/.gitkeep
 !uploaded/animations/preview/
+!uploaded/animations/preview/.gitkeep
 !uploaded/images/
+!uploaded/images/.gitkeep
 !uploaded/images/preview/
+!uploaded/images/preview/.gitkeep
 !uploaded/raw/
+!uploaded/raw/.gitkeep
 
+# Ignore only these files in data/
 data/settings.json
 data/shows.json
