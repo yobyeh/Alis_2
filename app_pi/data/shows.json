@@ -38,6 +38,35 @@
           "seconds": 5
         }
       ]
+    },
+    {
+      "name": "testtest",
+      "width": 16,
+      "height": 16,
+      "shape": "square",
+      "entries": [
+        {
+          "type": "static",
+          "name": "chick.h5",
+          "width": 16,
+          "height": 16,
+          "seconds": 5
+        },
+        {
+          "type": "static",
+          "name": "dino.h5",
+          "width": 16,
+          "height": 16,
+          "seconds": 5
+        },
+        {
+          "type": "static",
+          "name": "mush.h5",
+          "width": 16,
+          "height": 16,
+          "seconds": 5
+        }
+      ]
     }
   ]
 }

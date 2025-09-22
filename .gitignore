@@ -105,6 +105,13 @@ fastlane/Preview.html
 fastlane/screenshots/
 fastlane/test_output
 
-uploaded/
+uploaded/*
+!uploaded/.gitkeep
+!uploaded/animations/
+!uploaded/animations/preview/
+!uploaded/images/
+!uploaded/images/preview/
+!uploaded/raw/
+
 data/settings.json
 data/shows.json

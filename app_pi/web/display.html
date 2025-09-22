@@ -310,10 +310,17 @@
                     const item = document.createElement("div");
                     item.className = "image-item";
                     item.style.cursor = "pointer";
-                    // No preview image, just show text and size
-                    const name = document.createElement("span");
-                    name.textContent = `${txt.name} (${txt.width}x${txt.height})`;
-                    item.appendChild(name);
+                    // Show name and all info
+                    const info = document.createElement("span");
+                    info.style.color = "#fff";
+                    info.style.fontSize = "1.2em";
+                    info.style.fontWeight = "bold";
+                    info.textContent =
+                        `${txt.name} (${txt.width}x${txt.height}) | ` +
+                        `Color: ${txt.color || "#ffd600"} | ` +
+                        `Font: ${txt["font size"] || "42"} | ` +
+                        `Scroll: ${txt["scroll speed"] || "2"}`;
+                    item.appendChild(info);
                     item.onclick = async () => {
                         item.style.background = "#2979ff";
                         item.style.color = "#fff";

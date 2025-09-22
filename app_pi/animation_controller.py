@@ -41,10 +41,12 @@ class AnimationController(threading.Thread):
         #image tracking
         self.seconds_requested = -1
         self.seconds_shown = 0
+        self.image_name = None
 
         #text tracking
         self.text_loops = -1
         self.text_loop_counter = 0
+        self.text_name = None
 
         #scrolling text
         self.display_text = ""
@@ -105,9 +107,13 @@ class AnimationController(threading.Thread):
                 msg = None
                 try:
                     msg = self.show_animation_qeue.get(timeout=0.1)
-                    msg = self.web_animation_queue.get(timeout=0.1)
                 except queue.Empty:
                     pass
+                if msg is None:
+                    try:
+                        msg = self.web_animation_queue.get(timeout=0.1)
+                    except queue.Empty:
+                        pass
 
                 # Handle mode change message
                 if msg and isinstance(msg, dict) and msg.get("type") == "mode":
@@ -145,8 +151,8 @@ class AnimationController(threading.Thread):
                         # Handle new image messages
                         if msg and isinstance(msg, dict):
                             if msg.get("type") == "image":
-                                filename = msg.get("name")
-                                h5_path = f"uploaded/images/{filename}"
+                                self.image_name = msg.get("name")
+                                h5_path = f"uploaded/images/{self.image_name}"
                                 print("new image")
                                 with h5py.File(h5_path, "r") as h5f:
                                     matrix = np.array(h5f["frames"])
@@ -154,17 +160,18 @@ class AnimationController(threading.Thread):
                                     self.seconds_requested = -1  # Show indefinitely
                                     self.seconds_shown = 0
                                 # Send image once
+                                frame = self.image_matrix[0] if self.image_matrix.ndim == 4 else self.image_matrix
                                 payload = bytearray()
                                 for x in range(self.width):
                                     for y in range(self.height):
-                                        g, r, b = self.image_matrix[y, x]
+                                        g, r, b = frame[y, x]
                                         payload.extend([g, r, b])
                                 self.frame_queue.put((bytes(payload), self.brightness))
 
                             elif msg.get("type") == "show_image":
-                                filename = msg.get("name")
+                                self.image_name = msg.get("name")
                                 seconds = int(msg.get("seconds", 5))
-                                h5_path = f"uploaded/images/{filename}"
+                                h5_path = f"uploaded/images/{self.image_name}"
                                 print("show image")
                                 with h5py.File(h5_path, "r") as h5f:
                                     matrix = np.array(h5f["frames"])
@@ -172,15 +179,16 @@ class AnimationController(threading.Thread):
                                     self.seconds_requested = seconds
                                     self.seconds_shown = 0
                                 # Send image once
+                                frame = self.image_matrix[0] if self.image_matrix.ndim == 4 else self.image_matrix
                                 payload = bytearray()
                                 for x in range(self.width):
                                     for y in range(self.height):
-                                        g, r, b = self.image_matrix[y, x]
+                                        g, r, b = frame[y, x]
                                         payload.extend([g, r, b])
                                 self.frame_queue.put((bytes(payload), self.brightness))
 
                         # Time tracking and completion check
-                        if hasattr(self, "image_matrix") and self.seconds_requested > 0:
+                        if self.image_name and hasattr(self, "image_matrix") and self.seconds_requested > 0:
                             self.seconds_shown += 0.05  # frame rate interval
                             if self.seconds_shown >= self.seconds_requested:
                                 if self.show_entry_complete_event:
@@ -252,53 +260,52 @@ class AnimationController(threading.Thread):
                     case "text":
                         # Handle new text messages
                         if msg and isinstance(msg, dict):
-                            self.display_text = msg.get("name", "")
+                            self.text_name = msg.get("name", "")
                             self.text_loops = int(msg.get("loops_requested", -1))  # -1 for infinite loops if not provided
                             self.text_loop_counter = 0
 
                             # Load parameters from text_display.json
                             text_params = None
-                            if self.display_text:
+                            if self.text_name:
                                 with open("data/text_display.json", "r") as f:
                                     text_entries = json.load(f)
                                 for entry in text_entries:
-                                    if entry.get("name") == self.display_text:
+                                    if entry.get("name") == self.text_name:
                                         text_params = entry
                                         break
                             if text_params:
-                                text_height = int(text_params.get("height", self.height))
-                                text_width = int(text_params.get("width", self.width))
-                                text_color = text_params.get("color", "#ffd600")
-                                font_size = int(text_params.get("font size", 32))
-                                scroll_speed = int(text_params.get("scroll speed", 2))
-                                display_text = self.display_text
+                                self.text_height = int(text_params.get("height", self.height))
+                                self.text_width = int(text_params.get("width", self.width))
+                                self.text_color = text_params.get("color", "#ffd600")
+                                self.font_size = int(text_params.get("font size", 32))
+                                self.scroll_speed = int(text_params.get("scroll speed", 2))
                             else:
                                 print("No matching text entry found or no text to display")
-                                display_text = None
-                        else:
-                            display_text = None
+                                self.text_name = None
 
                         # Only render if we have text to display
-                        if display_text:
+                        if self.text_name:
                             frames = self.render_scrolling_text(
-                                display_text, text_width, text_height, text_color, font_size, scroll_speed
+                                self.text_name, self.text_width, self.text_height, self.text_color, self.font_size, self.scroll_speed
                             )
-                            # Loop logic
                             keep_looping = (self.text_loops == -1 or self.text_loop_counter < self.text_loops)
                             if keep_looping:
                                 for frame in frames:
                                     payload = bytearray()
-                                    for x in range(text_width):
-                                        for y in range(text_height):
+                                    for x in range(self.text_width):
+                                        for y in range(self.text_height):
                                             g, r, b = frame[y, x]
                                             payload.extend([g, r, b])
                                     self.frame_queue.put((bytes(payload), self.brightness))
                                     time.sleep(0.05)
                                 self.text_loop_counter += 1
-                            else:
-                                print("Requested text loops completed, not looping further.")
-                                if self.show_entry_complete_event:
-                                    self.show_entry_complete_event.set()
+                                # Only set the event if we've finished all requested loops
+                                if self.text_loops != -1 and self.text_loop_counter >= self.text_loops:
+                                    print("Requested text loops completed, not looping further.")
+                                    if self.show_entry_complete_event:
+                                        self.show_entry_complete_event.set()
+                        else:
+                            print("No matching text entry found or no text to display")
                     case _:
                         print("invalid animation mode")
 
