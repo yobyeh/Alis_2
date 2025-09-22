@@ -14,6 +14,7 @@ from multiprocessing import Manager, Lock
 from interface import start_interface  # def start_interface(settings: dict, shutdown_event, lock)
 from led_controller import LEDController
 from animation_controller import AnimationController
+from show_controller import ShowController
 
 MENU_PATH = Path("data/menu_data.json")
 #DEFAULT_SETTINGS_PATH = Path("data/default_settings.json")
@@ -25,9 +26,14 @@ shutdown_event = threading.Event()
 frame_queue = queue.Queue()
 #web to animation controller
 web_animation_queue = multiprocessing.Queue()
-
+#show controller to animation
+show_animation_qeue = queue.Queue()
+#web to show controller
+web_show_queue = multiprocessing.Queue()
 #thread communication
 interface_que = multiprocessing.Queue()
+#animation controller completing events from show
+show_entry_complete_event = threading.Event()
 
 manager = Manager()
 current_settings = manager.dict({"Animation Mode": "idle"})
@@ -69,9 +75,11 @@ def save_settings():
 def run_web_server(web_animation_queue, current_settings, settings_lock):
     import uvicorn
     import web_server
+    #web servers get comunication queues here
     web_server.app.state.web_animation_queue = web_animation_queue
+    web_server.app.state.web_show_queue = web_show_queue
     web_server.app.state.current_settings = current_settings
-    web_server.app.state.settings_lock = settings_lock  # <-- set in app.state
+    web_server.app.state.settings_lock = settings_lock
     uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=False)
 
 def start_web_server_monitor(web_animation_queue, current_settings, settings_lock):
@@ -135,14 +143,25 @@ def main():
 
     # -------------------- Start animation controller thread --------------------
     animation_controller = AnimationController(
-        stop_evt = shutdown_event,
-        frame_queue = frame_queue,
-        current_settings = current_settings,
-        settings_lock = settings_lock,
-        web_animation_queue = web_animation_queue
+        stop_evt=shutdown_event,
+        frame_queue=frame_queue,
+        current_settings=current_settings,
+        settings_lock=settings_lock,
+        web_animation_queue=web_animation_queue,
+        show_animation_qeue=show_animation_qeue,
+        show_entry_complete_event=show_entry_complete_event
     )
     animation_controller.start()
     print("Animation controller thread started.", flush=True)
+
+    # -------------------- Start show controller thread --------------------
+    show_controller = ShowController(
+        web_show_queue,
+        show_animation_qeue,
+        show_entry_complete_event
+    )
+    show_controller.start()
+    print("Show controller thread started.", flush=True)
 
     # -------------------- Start web server process --------------------
     # web_server_proc = multiprocessing.Process(target=run_web_server)
@@ -162,6 +181,7 @@ def main():
             interface_thread.is_alive()
             and led_controller.is_alive()
             and animation_controller.is_alive()
+            and show_controller.is_alive()
             and not shutdown_event.is_set()
         ):
             time.sleep(0.2)
@@ -188,6 +208,12 @@ def main():
         # 3) Stop interface
         try:
             interface_thread.join(timeout=5)
+        except Exception:
+            pass
+
+        # 4) Stop show controller
+        try:
+            show_controller.join(timeout=5)
         except Exception:
             pass
 

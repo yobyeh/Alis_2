@@ -14,5 +14,13 @@
     "color": "#2979ff",
     "scorll speed": 2,
     "font size": 40
+  },
+  {
+    "name": "food",
+    "width": 16,
+    "height": 16,
+    "color": "#00ff11",
+    "font size": 42,
+    "scroll speed": 2
   }
 ]

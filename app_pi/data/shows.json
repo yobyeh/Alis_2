@@ -1,61 +1,38 @@
 {
   "shows": [
     {
-      "name": "Show 1",
-      "height": 16,
+      "name": "test",
       "width": 16,
+      "height": 16,
       "shape": "square",
       "entries": [
-        {
-          "type": "animation",
-          "name": "rainbow.h5",
-          "loop_count": 3,
-          "fps": 15
-        },
-        {
-          "type": "image",
-          "name": "smile.h5",
-          "seconds": 5
-        },
         {
           "type": "text",
           "name": "Hello World!",
-          "fps": 10
-        }
-      ]
-    },
-    {
-      "name": "test test",
-      "width": 16,
-      "height": 16,
-      "shape": "square",
-      "entries": [
-        {
-          "type": "static",
-          "name": "dino.h5",
           "width": 16,
           "height": 16,
-          "seconds": 5
+          "fps": 10,
+          "loop_count": 2
+        },
+        {
+          "type": "animation",
+          "name": "eyes.h5",
+          "width": 16,
+          "height": 16,
+          "loop_count": 1,
+          "fps": 15
         },
         {
           "type": "animation",
           "name": "fire1.h5",
           "width": 16,
           "height": 16,
-          "loop_count": 5,
-          "fps": 15
-        },
-        {
-          "type": "animation",
-          "name": "circle.h5",
-          "width": 16,
-          "height": 16,
-          "loop_count": 5,
+          "loop_count": 3,
           "fps": 15
         },
         {
           "type": "static",
-          "name": "mush.h5",
+          "name": "dino.h5",
           "width": 16,
           "height": 16,
           "seconds": 5

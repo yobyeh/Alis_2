@@ -107,15 +107,13 @@
                 showDiv.className = "show-item";
                 // Make the whole show box clickable
                 showDiv.onclick = async () => {
-                    // Remove 'selected' from all show boxes
                     document.querySelectorAll('.show-item.selected').forEach(e => e.classList.remove('selected'));
                     showDiv.classList.add('selected');
-                    await fetch("/api/run_show_entry", {
+                    await fetch("/api/run_show", {
                         method: "POST",
                         headers: {"Content-Type": "application/json"},
                         body: JSON.stringify({
-                            show_index: showIdx,
-                            show: show
+                            name: show.name
                         })
                     });
                 };

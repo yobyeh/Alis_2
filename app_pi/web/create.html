@@ -331,6 +331,8 @@
                 entryOptions.innerHTML += `
                     <div class="field"><label for="entryFps">FPS</label>
                     <input type="number" id="entryFps" min="1" max="60" value="10"></div>
+                    <div class="field"><label for="entryLoop">Loop Count</label>
+                    <input type="number" id="entryLoop" min="1" max="99" value="1"></div>
                 `;
             }
 
@@ -359,6 +361,7 @@
                 entry.seconds = parseInt(document.getElementById("entrySeconds").value) || 5;
             } else if (entryType === "text") {
                 entry.fps = parseInt(document.getElementById("entryFps").value) || 10;
+                entry.loop_count = parseInt(document.getElementById("entryLoop").value) || 1;
             }
             showEntries.push(entry);
             renderEntryList();

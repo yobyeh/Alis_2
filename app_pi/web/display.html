@@ -118,6 +118,45 @@
             <!-- Animations will be loaded here -->
         </div>
     </div>
+    <div class="list-container hidden" id="textEntryForm" style="margin-bottom:1em; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+        <div style="display:flex; flex-direction:column; gap:1em;">
+            <label for="textName" style="color:#ffd600; font-weight:bold;">Text to Display</label>
+            <input type="text" id="textName" placeholder="Enter text..." maxlength="64" style="font-size:1.2em; border-radius:0.5em; border:none; padding:0.6em;">
+            
+            <div style="display:flex; gap:1em;">
+                <div style="flex:1;">
+                    <label for="textWidth" style="color:#ffd600; font-weight:bold;">Width</label>
+                    <input type="number" id="textWidth" placeholder="Width" min="1" max="128" style="font-size:1.2em; border-radius:0.5em; border:none; padding:0.6em;">
+                </div>
+                <div style="flex:1;">
+                    <label for="textHeight" style="color:#ffd600; font-weight:bold;">Height</label>
+                    <input type="number" id="textHeight" placeholder="Height" min="1" max="128" style="font-size:1.2em; border-radius:0.5em; border:none; padding:0.6em;">
+                </div>
+            </div>
+            
+            <div style="display:flex; gap:1em;">
+                <div style="flex:1;">
+                    <label for="textFontSize" style="color:#ffd600; font-weight:bold;">Font Size</label>
+                    <input type="number" id="textFontSize" placeholder="42" min="8" max="128" style="font-size:1.2em; border-radius:0.5em; border:none; padding:0.6em;">
+                </div>
+                <div style="flex:1;">
+                    <label for="textScrollSpeed" style="color:#ffd600; font-weight:bold;">Scroll Speed</label>
+                    <input type="number" id="textScrollSpeed" placeholder="2" min="1" max="30" style="font-size:1.2em; border-radius:0.5em; border:none; padding:0.6em;">
+                </div>
+            </div>
+            
+            <div style="display:flex; align-items:center; gap:1em;">
+                <label for="textColor" style="color:#ffd600; font-weight:bold;">Color</label>
+                <input type="color" id="textColor" value="#ffd600" style="height:2.5em; width:2.5em; border-radius:0.5em; border:none;">
+            </div>
+            
+            <div style="display:flex; gap:1em;">
+                <button id="testTextBtn" style="flex:1; background:#2979ff; color:#fff; font-size:1.2em; border-radius:0.5em; border:none; padding:0.7em; font-weight:bold;">Test</button>
+                <button id="saveTextBtn" style="flex:1; background:#ffd600; color:#222831; font-size:1.2em; border-radius:0.5em; border:none; padding:0.7em; font-weight:bold;">Save</button>
+            </div>
+            <div id="textEntryError" style="color:#ff1744; font-weight:bold; display:none;"></div>
+        </div>
+    </div>
     <div class="list-container hidden" id="textList">
         <div class="image-list" id="textImageList">
             <!-- Text entries will be loaded here -->
@@ -130,7 +169,7 @@
         const textBtn = document.getElementById("textBtn");
         const staticList = document.getElementById("staticList");
         const animationList = document.getElementById("animationList");
-        const textList = document.getElementById("textList");
+        const textEntryForm = document.getElementById("textEntryForm");
 
         staticBtn.onclick = () => {
             staticBtn.classList.add("active");
@@ -139,6 +178,7 @@
             staticList.classList.remove("hidden");
             animationList.classList.add("hidden");
             textList.classList.add("hidden");
+            textEntryForm.classList.add("hidden");
         };
         animationBtn.onclick = () => {
             animationBtn.classList.add("active");
@@ -147,12 +187,14 @@
             animationList.classList.remove("hidden");
             staticList.classList.add("hidden");
             textList.classList.add("hidden");
+            textEntryForm.classList.add("hidden");
         };
         textBtn.onclick = () => {
             textBtn.classList.add("active");
             staticBtn.classList.remove("active");
             animationBtn.classList.remove("active");
             textList.classList.remove("hidden");
+            textEntryForm.classList.remove("hidden");
             staticList.classList.add("hidden");
             animationList.classList.add("hidden");
         };
@@ -302,6 +344,80 @@
             renderAnimations();
             renderText();
         };
+
+        async function testTextEntry() {
+            const name = document.getElementById("textName").value.trim();
+            const width = parseInt(document.getElementById("textWidth").value);
+            const height = parseInt(document.getElementById("textHeight").value);
+            const color = document.getElementById("textColor").value;
+            const fontSize = parseInt(document.getElementById("textFontSize").value);
+            const scrollSpeed = parseInt(document.getElementById("textScrollSpeed").value);
+
+            if (!name || !width || !height || !fontSize || !scrollSpeed) {
+                return showTextEntryError("All fields are required.");
+            }
+
+            await fetch("/api/test_text", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    name,
+                    width,
+                    height,
+                    color,
+                    "font size": fontSize,
+                    "scroll speed": scrollSpeed
+                })
+            });
+        }
+
+        async function saveTextEntry() {
+            const name = document.getElementById("textName").value.trim();
+            const width = parseInt(document.getElementById("textWidth").value);
+            const height = parseInt(document.getElementById("textHeight").value);
+            const color = document.getElementById("textColor").value;
+            const fontSize = parseInt(document.getElementById("textFontSize").value);
+            const scrollSpeed = parseInt(document.getElementById("textScrollSpeed").value);
+
+            if (!name || !width || !height || !fontSize || !scrollSpeed) {
+                return showTextEntryError("All fields are required.");
+            }
+
+            // Save to backend
+            const entry = {
+                name,
+                width,
+                height,
+                color,
+                "font size": fontSize,
+                "scroll speed": scrollSpeed
+            };
+            const res = await fetch("/api/save_text_entry", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(entry)
+            });
+            if (res.ok) {
+                document.getElementById("textName").value = "";
+                document.getElementById("textWidth").value = "";
+                document.getElementById("textHeight").value = "";
+                document.getElementById("textFontSize").value = "";
+                document.getElementById("textScrollSpeed").value = "";
+                showTextEntryError(""); // Clear error
+                loadText(); // Reload list
+            } else {
+                showTextEntryError("Failed to save entry (duplicate name?)");
+            }
+        }
+
+        function showTextEntryError(msg) {
+            const err = document.getElementById("textEntryError");
+            err.textContent = msg;
+            err.style.display = msg ? "block" : "none";
+        }
+
+        document.getElementById("testTextBtn").onclick = testTextEntry;
+        document.getElementById("saveTextBtn").onclick = saveTextEntry;
 
         // Initial load
         loadImages();

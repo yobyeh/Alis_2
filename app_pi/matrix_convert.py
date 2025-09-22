@@ -38,6 +38,9 @@ class MatrixConvert:
                     case "image/gif":
                         print(f"Processing GIF: {file.name}")
                         self.process_gif(file)
+                        # Delete the raw file after processing
+                        file.unlink()
+                        print(f"Deleted raw file: {file}")
                     case "video/mp4":
                         print(f"Processing MP4: {file.name}")
                         # TODO: Add MP4 processing here

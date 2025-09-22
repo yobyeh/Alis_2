@@ -152,8 +152,21 @@ async def run_text(data: dict = Body(...)):
     # Send text entry name
     name = data.get("name")
     print(f"Run text requested: {name}")
-    web_animation_queue.put({"type": "text", "text": name})
+    web_animation_queue.put({"type": "text", "name": name})
     return {"status": "ok", "name": name}
+
+@app.post("/api/test_text")
+async def test_text(data: dict = Body(...)):
+    # Switch animation controller to text mode
+    web_animation_queue = app.state.web_animation_queue
+    msg = {"type": "mode", "mode": "text"}
+    web_animation_queue.put(msg)
+    print("Sent text mode message to animation controller (test)")
+
+    # Send all text parameters directly
+    print(f"Test text requested: {data}")
+    web_animation_queue.put({"type": "text_test", **data})
+    return {"status": "ok", "data": data}
 
 @app.get("/api/shows_list")
 async def shows_list():
@@ -217,6 +230,34 @@ async def delete_show(data: dict = Body(...)):
     with open(shows_path, "w") as f:
         json.dump(shows_data, f, indent=2)
     return {"status": "deleted"}
+
+@app.post("/api/save_text_entry")
+async def save_text_entry(data: dict = Body(...)):
+    import json
+    text_path = Path("data/text_display.json")
+    # Load existing entries
+    if text_path.exists():
+        with open(text_path, "r") as f:
+            text_data = json.load(f)
+    else:
+        text_data = []
+    # Check for duplicate name
+    for entry in text_data:
+        if entry.get("name") == data["name"]:
+            return JSONResponse({"error": "Text name already exists."}, status_code=400)
+    text_data.append(data)
+    with open(text_path, "w") as f:
+        json.dump(text_data, f, indent=2)
+    return {"status": "saved"}
+
+@app.post("/api/run_show")
+async def run_show(data: dict = Body(...)):
+    # Send play_show message to ShowController
+    show_name = data.get("name")
+    print(f"Run show requested: {show_name}")
+    web_show_queue = app.state.web_show_queue  # You need to set this up in your app
+    web_show_queue.put({"type": "play_show", "name": show_name})
+    return {"status": "ok", "name": show_name}
 
 if __name__ == "__main__":
     uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=True)

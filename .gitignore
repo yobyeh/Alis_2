@@ -106,4 +106,4 @@ fastlane/screenshots/
 fastlane/test_output
 
 uploaded/
-
+data/settings.json

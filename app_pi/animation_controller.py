@@ -13,13 +13,16 @@ import json
 
 class AnimationController(threading.Thread):
     def __init__(self, stop_evt, frame_queue,
-                current_settings, settings_lock,web_animation_queue):
+                current_settings, settings_lock,web_animation_queue, show_animation_qeue, show_entry_complete_event):
         super().__init__(name="AnimationControllerThread")
         self.shutdown_event = stop_evt
         self.frame_queue = frame_queue
         self.current_settings = current_settings
         self.settings_lock = settings_lock
+        #queues communication
         self.web_animation_queue = web_animation_queue
+        self.show_animation_qeue = show_animation_qeue
+
         self.mode = "idle"
         self.pixels = 256
         self.width = 16
@@ -31,6 +34,17 @@ class AnimationController(threading.Thread):
         self.animation_name = None
         self.animation_index = 0
         self.total_frames = 0
+        self.loops_reqested = -1 # loops forever, set if mesage is animation, value if show_animation
+        self.loop_counter = 0
+        self.show_entry_complete_event = show_entry_complete_event
+
+        #image tracking
+        self.seconds_requested = -1
+        self.seconds_shown = 0
+
+        #text tracking
+        self.text_loops = -1
+        self.text_loop_counter = 0
 
         #scrolling text
         self.display_text = ""
@@ -90,6 +104,7 @@ class AnimationController(threading.Thread):
             while not self.shutdown_event.is_set():
                 msg = None
                 try:
+                    msg = self.show_animation_qeue.get(timeout=0.1)
                     msg = self.web_animation_queue.get(timeout=0.1)
                 except queue.Empty:
                     pass
@@ -127,81 +142,163 @@ class AnimationController(threading.Thread):
                                     payload.extend([g, r, b])
                             self.frame_queue.put((bytes(payload), self.brightness))
                     case "static":
-                        print("running static")
-                        time.sleep(0.5)
-                        if msg and isinstance(msg, dict) and msg.get("type") == "image":
-                            filename = msg.get("name")
-                            h5_path = f"uploaded/images/{filename}"
-                            matrix = load_h5_frame_to_matrix(h5_path)
-                            payload = bytearray()
-                            for x in range(self.width):
-                                for y in range(self.height):
-                                    g, r, b = matrix[y, x]
-                                    payload.extend([g, r, b])
-                            self.frame_queue.put((bytes(payload), self.brightness))
-                    case "animation":
-                        # If a new animation message arrives, load the animation
-                        if msg and isinstance(msg, dict) and msg.get("type") == "animation":
-                            filename = msg.get("name")
-                            h5_path = f"uploaded/animations/{filename}"
-                            print("new animation")
-                            with h5py.File(h5_path, "r") as h5f:
-                                if "frames" not in h5f:
-                                    raise ValueError(f"No 'frames' dataset in {h5_path}")
-                                frames = h5f["frames"]
-                                print("frames type:", type(frames))
-                                if not isinstance(frames, h5py.Dataset):
-                                    raise TypeError(f"'frames' is not a dataset in {h5_path}, got {type(frames)}")
-                                self.animation_frames = np.array(frames)
-                                self.total_frames = self.animation_frames.shape[0]
-                                self.animation_name = filename
-                                self.animation_index = 0
-                                print(f"Animation {filename} has {self.frame_count} frames")
-
-                        # If animation is loaded, loop through frames
-                        if self.animation_frames is not None and self.frame_count > 0:
-                            matrix = self.animation_frames[self.animation_index]
-                            payload = bytearray()
-                            for x in range(self.width):
-                                for y in range(self.height):
-                                    g, r, b = matrix[y, x]
-                                    payload.extend([g, r, b])
-                            self.frame_queue.put((bytes(payload), self.brightness))
-                            self.animation_index = (self.animation_index + 1) % self.frame_count
-                    case "text":
-                        # If a new text message arrives, set the display text
-                        if msg and isinstance(msg, dict) and msg.get("type") == "text":
-                            self.display_text = msg.get("name")
-
-                        # Load parameters from text_display.json
-                        text_params = None
-                        if self.display_text:
-                            with open("data/text_display.json", "r") as f:
-                                text_entries = json.load(f)
-                            for entry in text_entries:
-                                if entry.get("name") == self.display_text:
-                                    text_params = entry
-                                    break
-
-                        if text_params:
-                            text_height = int(text_params.get("height", self.height))
-                            text_width = int(text_params.get("width", self.width))
-                            text_color = text_params.get("color", "#ffd600")
-                            font_size = int(text_params.get("font size", 32))
-                            scroll_speed = int(text_params.get("scroll speed", 2))
-                            frames = self.render_scrolling_text(
-                                self.display_text, text_width, text_height, text_color, font_size, scroll_speed
-                            )
-                            for frame in frames:
+                        # Handle new image messages
+                        if msg and isinstance(msg, dict):
+                            if msg.get("type") == "image":
+                                filename = msg.get("name")
+                                h5_path = f"uploaded/images/{filename}"
+                                print("new image")
+                                with h5py.File(h5_path, "r") as h5f:
+                                    matrix = np.array(h5f["frames"])
+                                    self.image_matrix = matrix
+                                    self.seconds_requested = -1  # Show indefinitely
+                                    self.seconds_shown = 0
+                                # Send image once
                                 payload = bytearray()
-                                for x in range(text_width):
-                                    for y in range(text_height):
-                                        g, r, b = frame[y, x]
+                                for x in range(self.width):
+                                    for y in range(self.height):
+                                        g, r, b = self.image_matrix[y, x]
                                         payload.extend([g, r, b])
                                 self.frame_queue.put((bytes(payload), self.brightness))
-                                time.sleep(0.05)
+
+                            elif msg.get("type") == "show_image":
+                                filename = msg.get("name")
+                                seconds = int(msg.get("seconds", 5))
+                                h5_path = f"uploaded/images/{filename}"
+                                print("show image")
+                                with h5py.File(h5_path, "r") as h5f:
+                                    matrix = np.array(h5f["frames"])
+                                    self.image_matrix = matrix
+                                    self.seconds_requested = seconds
+                                    self.seconds_shown = 0
+                                # Send image once
+                                payload = bytearray()
+                                for x in range(self.width):
+                                    for y in range(self.height):
+                                        g, r, b = self.image_matrix[y, x]
+                                        payload.extend([g, r, b])
+                                self.frame_queue.put((bytes(payload), self.brightness))
+
+                        # Time tracking and completion check
+                        if hasattr(self, "image_matrix") and self.seconds_requested > 0:
+                            self.seconds_shown += 0.05  # frame rate interval
+                            if self.seconds_shown >= self.seconds_requested:
+                                if self.show_entry_complete_event:
+                                    self.show_entry_complete_event.set()
+
+                    case "animation":
+                        if msg and isinstance(msg, dict):
+                            if msg.get("type") == "animation":
+                                filename = msg.get("name")
+                                h5_path = f"uploaded/animations/{filename}"
+                                print("new animation")
+                                with h5py.File(h5_path, "r") as h5f:
+                                    if "frames" not in h5f:
+                                        raise ValueError(f"No 'frames' dataset in {h5_path}")
+                                    frames = h5f["frames"]
+                                    print("frames type:", type(frames))
+                                    if not isinstance(frames, h5py.Dataset):
+                                        raise TypeError(f"'frames' is not a dataset in {h5_path}, got {type(frames)}")
+                                    self.animation_frames = np.array(frames)
+                                    self.total_frames = self.animation_frames.shape[0]
+                                    self.animation_name = filename
+                                    self.animation_index = 0
+                                    self.loop_counter = 0
+                                    self.loops_reqested = -1  # Loop forever for direct animation messages
+                                    print(f"Animation {filename} has {self.total_frames} frames")
+                            elif msg.get("type") == "show_animation":
+                                filename = msg.get("name")
+                                loops_requested = int(msg.get("loops_requested", 1))
+                                h5_path = f"uploaded/animations/{filename}"
+                                print("show animation")
+                                with h5py.File(h5_path, "r") as h5f:
+                                    if "frames" not in h5f:
+                                        raise ValueError(f"No 'frames' dataset in {h5_path}")
+                                    frames = h5f["frames"]
+                                    print("frames type:", type(frames))
+                                    if not isinstance(frames, h5py.Dataset):
+                                        raise TypeError(f"'frames' is not a dataset in {h5_path}, got {type(frames)}")
+                                    self.animation_frames = np.array(frames)
+                                    self.total_frames = self.animation_frames.shape[0]
+                                    self.animation_name = filename
+                                    self.animation_index = 0
+                                    self.loop_counter = 0
+                                    self.loops_reqested = loops_requested  # Use requested loop count
+                                    print(f"Show Animation {filename} has {self.total_frames} frames, loops requested: {self.loops_reqested}")
+
+                        # Only run if animation is loaded
+                        if self.animation_frames is not None and self.total_frames > 0:
+                            keep_looping = (
+                                self.loops_reqested == -1 or
+                                self.loop_counter < self.loops_reqested
+                            )
+                            if keep_looping:
+                                matrix = self.animation_frames[self.animation_index]
+                                payload = bytearray()
+                                for x in range(self.width):
+                                    for y in range(self.height):
+                                        g, r, b = matrix[y, x]
+                                        payload.extend([g, r, b])
+                                self.frame_queue.put((bytes(payload), self.brightness))
+                                self.animation_index += 1
+                                if self.animation_index >= self.total_frames:
+                                    self.animation_index = 0
+                                    self.loop_counter += 1
+                            else:
+                                print("Requested loops completed, not looping further.")
+                                if self.show_entry_complete_event:
+                                    self.show_entry_complete_event.set()
+
+                    case "text":
+                        # Handle new text messages
+                        if msg and isinstance(msg, dict):
+                            self.display_text = msg.get("name", "")
+                            self.text_loops = int(msg.get("loops_requested", -1))  # -1 for infinite loops if not provided
+                            self.text_loop_counter = 0
+
+                            # Load parameters from text_display.json
+                            text_params = None
+                            if self.display_text:
+                                with open("data/text_display.json", "r") as f:
+                                    text_entries = json.load(f)
+                                for entry in text_entries:
+                                    if entry.get("name") == self.display_text:
+                                        text_params = entry
+                                        break
+                            if text_params:
+                                text_height = int(text_params.get("height", self.height))
+                                text_width = int(text_params.get("width", self.width))
+                                text_color = text_params.get("color", "#ffd600")
+                                font_size = int(text_params.get("font size", 32))
+                                scroll_speed = int(text_params.get("scroll speed", 2))
+                                display_text = self.display_text
+                            else:
+                                print("No matching text entry found or no text to display")
+                                display_text = None
                         else:
-                            print("No matching text entry found or no text to display")
+                            display_text = None
+
+                        # Only render if we have text to display
+                        if display_text:
+                            frames = self.render_scrolling_text(
+                                display_text, text_width, text_height, text_color, font_size, scroll_speed
+                            )
+                            # Loop logic
+                            keep_looping = (self.text_loops == -1 or self.text_loop_counter < self.text_loops)
+                            if keep_looping:
+                                for frame in frames:
+                                    payload = bytearray()
+                                    for x in range(text_width):
+                                        for y in range(text_height):
+                                            g, r, b = frame[y, x]
+                                            payload.extend([g, r, b])
+                                    self.frame_queue.put((bytes(payload), self.brightness))
+                                    time.sleep(0.05)
+                                self.text_loop_counter += 1
+                            else:
+                                print("Requested text loops completed, not looping further.")
+                                if self.show_entry_complete_event:
+                                    self.show_entry_complete_event.set()
                     case _:
                         print("invalid animation mode")
 
