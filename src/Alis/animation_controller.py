@@ -8,6 +8,9 @@ import h5py
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import json
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 #hard coded pixels init and brightness 
 
@@ -152,7 +155,7 @@ class AnimationController(threading.Thread):
                         if msg and isinstance(msg, dict):
                             if msg.get("type") == "image":
                                 self.image_name = msg.get("name")
-                                h5_path = f"uploaded/images/{self.image_name}"
+                                h5_path = os.path.join(BASE_DIR, "uploaded", "images", self.image_name)
                                 print("new image")
                                 with h5py.File(h5_path, "r") as h5f:
                                     matrix = np.array(h5f["frames"])
@@ -171,7 +174,7 @@ class AnimationController(threading.Thread):
                             elif msg.get("type") == "show_image":
                                 self.image_name = msg.get("name")
                                 seconds = int(msg.get("seconds", 5))
-                                h5_path = f"uploaded/images/{self.image_name}"
+                                h5_path = os.path.join(BASE_DIR, "uploaded", "images", self.image_name)
                                 print("show image")
                                 with h5py.File(h5_path, "r") as h5f:
                                     matrix = np.array(h5f["frames"])
@@ -198,7 +201,7 @@ class AnimationController(threading.Thread):
                         if msg and isinstance(msg, dict):
                             if msg.get("type") == "animation":
                                 filename = msg.get("name")
-                                h5_path = f"uploaded/animations/{filename}"
+                                h5_path = os.path.join(BASE_DIR, "uploaded", "animations", filename)
                                 print("new animation")
                                 with h5py.File(h5_path, "r") as h5f:
                                     if "frames" not in h5f:
@@ -217,7 +220,7 @@ class AnimationController(threading.Thread):
                             elif msg.get("type") == "show_animation":
                                 filename = msg.get("name")
                                 loops_requested = int(msg.get("loops_requested", 1))
-                                h5_path = f"uploaded/animations/{filename}"
+                                h5_path = os.path.join(BASE_DIR, "uploaded", "animations", filename)
                                 print("show animation")
                                 with h5py.File(h5_path, "r") as h5f:
                                     if "frames" not in h5f:
@@ -267,7 +270,8 @@ class AnimationController(threading.Thread):
                             # Load parameters from text_display.json
                             text_params = None
                             if self.text_name:
-                                with open("data/text_display.json", "r") as f:
+                                text_json_path = os.path.join(BASE_DIR, "data", "text_display.json")
+                                with open(text_json_path, "r") as f:
                                     text_entries = json.load(f)
                                 for entry in text_entries:
                                     if entry.get("name") == self.text_name:

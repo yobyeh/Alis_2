@@ -3,19 +3,22 @@ from pathlib import Path
 from PIL import Image
 import h5py
 import numpy as np
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 #hard coded W H fps
 class MatrixConvert:
     def __init__(self, folder="uploaded/raw", width=16, height=16, fps=30, grb=False, preview_size=128):
-        self.folder = Path(folder)
+        self.folder = Path(os.path.join(BASE_DIR, folder))
         self.width = width
         self.height = height
         self.fps = fps
-        self.image_out_folder = Path("uploaded/images")
+        self.image_out_folder = Path(os.path.join(BASE_DIR, "uploaded", "images"))
         self.image_out_folder.mkdir(parents=True, exist_ok=True)
         self.image_preview_folder = self.image_out_folder / "preview"
         self.image_preview_folder.mkdir(parents=True, exist_ok=True)
-        self.anim_out_folder = Path("uploaded/animations")
+        self.anim_out_folder = Path(os.path.join(BASE_DIR, "uploaded", "animations"))
         self.anim_out_folder.mkdir(parents=True, exist_ok=True)
         self.anim_preview_folder = self.anim_out_folder / "preview"
         self.anim_preview_folder.mkdir(parents=True, exist_ok=True)

@@ -10,19 +10,25 @@ import shutil
 from pathlib import Path
 from matrix_convert import run_matrix_convert
 import h5py
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Ensure preview directory exists before mounting
 Path("uploaded/images/preview").mkdir(parents=True, exist_ok=True)
 
 app = FastAPI()
-app.mount("/web/images/preview", StaticFiles(directory="uploaded/images/preview"), name="preview")
+preview_dir = os.path.join(BASE_DIR, "uploaded", "images", "preview")
+app.mount("/web/images/preview", StaticFiles(directory=preview_dir), name="preview")
 app.mount("/web/animations/preview", StaticFiles(directory="uploaded/animations/preview"), name="preview")
 app.mount("/web", StaticFiles(directory="web"), name="web")
-app.mount("/assets", StaticFiles(directory="assets"), name="assets")
+assets_dir = os.path.join(BASE_DIR, "assets")
+app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
-    with open("web/home.html") as f:
+    home_html = os.path.join(BASE_DIR, "web", "home.html")
+    with open(home_html) as f:
         return HTMLResponse(f.read())
 
 @app.get("/api/image_list")
@@ -171,6 +177,7 @@ async def test_text(data: dict = Body(...)):
 @app.get("/api/shows_list")
 async def shows_list():
     import json
+    shows_path = os.path.join(BASE_DIR, "data", "shows.json")
     shows_path = Path("data/shows.json")
     if not shows_path.exists():
         return JSONResponse({"shows": []})
@@ -191,6 +198,7 @@ async def run_show_entry(data: dict = Body(...)):
 @app.get("/api/text_list")
 async def text_list():
     import json
+    text_path = os.path.join(BASE_DIR, "data", "text_display.json")
     text_path = Path("data/text_display.json")
     if not text_path.exists():
         return JSONResponse([])
@@ -201,6 +209,7 @@ async def text_list():
 @app.post("/api/save_show")
 async def save_show(data: dict = Body(...)):
     import json
+    shows_path = os.path.join(BASE_DIR, "data", "shows.json")
     shows_path = Path("data/shows.json")
     # Load existing shows
     if shows_path.exists():
@@ -221,6 +230,7 @@ async def save_show(data: dict = Body(...)):
 @app.post("/api/delete_show")
 async def delete_show(data: dict = Body(...)):
     import json
+    shows_path = os.path.join(BASE_DIR, "data", "shows.json")
     shows_path = Path("data/shows.json")
     if not shows_path.exists():
         return JSONResponse({"error": "No shows file."}, status_code=404)
@@ -234,6 +244,7 @@ async def delete_show(data: dict = Body(...)):
 @app.post("/api/save_text_entry")
 async def save_text_entry(data: dict = Body(...)):
     import json
+    text_path = os.path.join(BASE_DIR, "data", "text_display.json")
     text_path = Path("data/text_display.json")
     # Load existing entries
     if text_path.exists():

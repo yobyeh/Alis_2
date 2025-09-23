@@ -10,15 +10,19 @@ import multiprocessing
 import queue
 import signal
 from multiprocessing import Manager, Lock
+import os
 
 from interface import start_interface  # def start_interface(settings: dict, shutdown_event, lock)
 from led_controller import LEDController
 from animation_controller import AnimationController
 from show_controller import ShowController
 
-MENU_PATH = Path("data/menu_data.json")
-#DEFAULT_SETTINGS_PATH = Path("data/default_settings.json")
-SETTINGS_PATH = Path("data/settings.json")
+BASE_DIR = Path(__file__).parent
+
+MENU_PATH = BASE_DIR / "data" / "menu_data.json"
+SETTINGS_PATH = BASE_DIR / "data" / "settings.json"
+base = BASE_DIR / "uploaded"
+
 settings_lock = threading.Lock()
 settings_changed = threading.Event()
 shutdown_event = threading.Event()
@@ -99,7 +103,13 @@ def start_web_server_monitor(web_animation_queue, current_settings, settings_loc
 
 def ensure_uploaded_folders():
     base = Path("uploaded")
-    subfolders = ["animations", "images", "images/preview", "animations/preview", "raw"]
+    subfolders = [
+        "animations",
+        "images",
+        "images/preview",
+        "animations/preview",
+        "raw"
+    ]
     if not base.exists():
         base.mkdir()
         print(f"Created folder: {base}")

@@ -2,6 +2,7 @@
 
 from PIL import Image, ImageDraw, ImageFont
 import threading
+import os
 
 class ScreenController:
 
@@ -11,6 +12,11 @@ class ScreenController:
         self.settings_lock = settings_lock
         self.current_settings = currnet_settings
         self.font = self.get_font()
+        self.address = ""
+        self.signal: int | None = 0
+        self.connected = False
+        self.signal_images = []
+        self.load_wifi_images()
 
     def get_font(self):
         try:
@@ -18,12 +24,28 @@ class ScreenController:
         except IOError:
             font = ImageFont.load_default()
         return font
+
+    def get_asset_image(self, filename):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        asset_path = os.path.join(base_dir, "assets", filename)
+        print(f"Loading asset image: {asset_path}")
+        return Image.open(asset_path) 
     
+    def load_wifi_images(self):
+        print("Loading WiFi signal images...")
+        self.signal_images.append(self.get_asset_image("no_signal.png"))
+        self.signal_images.append(self.get_asset_image("low_signal.png"))
+        self.signal_images.append(self.get_asset_image("med_signal.png"))
+        self.signal_images.append(self.get_asset_image("high_signal.png"))
+        print(f"Loaded {len(self.signal_images)} WiFi images.")
+        print(f"Signal images loaded: {len(self.signal_images)}")
+
     #240 x 320
     #x y x y 
     #recieves: current screen index, current option index, and menu data
     #6 on screen options at 20pt
     def draw_screen(self, screen, selection, menu_data):
+        print(f"Drawing screen: screen={screen}, selection={selection}, address={self.address}, signal={self.signal}")
         # Swap width and height for portrait orientation
         #background
         img = Image.new("RGB", (self.height, self.width), (0,0,0))  # type: ignore
@@ -42,10 +64,24 @@ class ScreenController:
         if screen != 0:
               title = screen_list[screen]
         draw.text((2, 4), title, fill="white", font=self.font)
+        
+        #wifi signal
+        print(f"Signal value: {self.signal}")
+        if self.signal_images and self.signal is not None:
+            # Clamp signal value to valid range
+            idx = self.rssi_to_signal_index(self.signal)
+            print(f"WiFi image index: {idx}")
+            wifi_img = self.signal_images[idx]
+            # Shrink image by half
+            w, h = wifi_img.size
+            wifi_img_small = wifi_img.resize((w // 2, h // 2), Image.LANCZOS)
+            img.paste(wifi_img_small, (310 - w // 3, 4), wifi_img_small)  # Adjust position as needed
+        else:
+            print("No WiFi images loaded or signal is None.")
 
         #footer
         draw.rectangle([0, 210, 320, 240], outline=(8, 0, 158), fill=(8, 0, 50), width=1)
-        draw.text((10, 214), "Address:", fill="white", font=self.font)
+        draw.text((10, 214), f"http:// {self.address}:8000", fill="white", font=self.font)
 
         #options
         i = 0
@@ -92,3 +128,16 @@ class ScreenController:
     def clear_screen(self):
         """Return a blank (black) image for clearing the display."""
         return Image.new("RGB", (self.height, self.width), (0,0,0))  # type: ignore
+
+    def rssi_to_signal_index(self, rssi):
+        # Example thresholds, adjust as needed
+        if rssi is None:
+            return 0  # No signal
+        if rssi > -60:
+            return 3  # High
+        elif rssi > -70:
+            return 2  # Medium
+        elif rssi > -80:
+            return 1  # Low
+        else:
+            return 0  # No signal

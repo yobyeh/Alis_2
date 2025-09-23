@@ -6,13 +6,15 @@
 #getting brightness to update with event flag
 
 import json
+import os
 from pathlib import Path
 from screen_controller import ScreenController
 
 class MenuController:
     # current settings data, settings thread lock, settings changed thread event
     def __init__(self, screen_controller, current_settings, settings_lock, settings_changed):
-        self.menu_path = Path("data/menu_data.json")
+        base_dir = Path(__file__).parent
+        self.menu_path = base_dir / "data" / "menu_data.json"
         self.menu_data = self.load_menu()
         self.screens = list(self.menu_data.get("screens", {}).keys())
         self.pointer_tracker = []

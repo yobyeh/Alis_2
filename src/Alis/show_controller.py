@@ -2,15 +2,19 @@ import time
 import threading
 import queue
 import json
+import os
 from multiprocessing import Queue
 
 
 class ShowController(threading.Thread):
-    def __init__(self, web_show_queue, show_animation_queue, show_entry_complete_event, shows_json_path="data/shows.json"):
+    def __init__(self, web_show_queue, show_animation_queue, show_entry_complete_event, shows_json_path=None):
         super().__init__()
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        if shows_json_path is None:
+            shows_json_path = os.path.join(base_dir, "data", "shows.json")
+        self.shows_json_path = shows_json_path
         self.show_queue = web_show_queue  # Receives commands from web server
         self.animation_queue = show_animation_queue  # Sends entries to AnimationController
-        self.shows_json_path = shows_json_path
         self.current_show = None
         self.show_index = 0
         self.shutdown_event = threading.Event()

@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Alis"
+version = "0.1.0"
+description = "pi hosted teensy connected LED controller"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "SLUG", email = "you@example.com" }]
+dependencies = [
+  "fastapi>=0.111",
+  "uvicorn>=0.22",
+  "pyserial>=3.5",
+  "numpy>=1.24",
+  "h5py>=3.9",
+  "Pillow>=10.0",
+]
+
+# Optional: a CLI entry point (installs a console script `yourpkg`)
+[project.scripts]
+alis = "Alis.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+# If you use namespace packages, you'd configure them here
+
+# Ship non-Python files inside your package (wheel-safe)
+[tool.setuptools.package-data]
+Alis = [
+  "data/**/*.json",
+  "assets/**/*",
+  "web/**/*",
+  "app_teensy/**/*",
+]

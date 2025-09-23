@@ -1,0 +1,3 @@
+recursive-include src/Alis/data *.json
+recursive-include src/Alis/assets *
+recursive-include src/Alis/web *

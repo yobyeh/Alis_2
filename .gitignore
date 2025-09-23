@@ -101,19 +101,35 @@ fastlane/screenshots/
 fastlane/test_output
 
 # Ignore all contents of uploaded/ but keep folders and .gitkeep files
-uploaded/*
-!uploaded/.gitkeep
-!uploaded/animations/
-!uploaded/animations/.gitkeep
-!uploaded/animations/preview/
-!uploaded/animations/preview/.gitkeep
-!uploaded/images/
-!uploaded/images/.gitkeep
-!uploaded/images/preview/
-!uploaded/images/preview/.gitkeep
-!uploaded/raw/
-!uploaded/raw/.gitkeep
+src/Alis/uploaded/*
+!src/Alis/uploaded/.gitkeep
+!src/Alis/uploaded/animations/
+!src/Alis/uploaded/animations/.gitkeep
+!src/Alis/uploaded/animations/preview/
+!src/Alis/uploaded/animations/preview/.gitkeep
+!src/Alis/uploaded/images/
+!src/Alis/uploaded/images/.gitkeep
+!src/Alis/uploaded/images/preview/
+!src/Alis/uploaded/images/preview/.gitkeep
+!src/Alis/uploaded/raw/
+!src/Alis/uploaded/raw/.gitkeep
 
 # Ignore only these files in data/
 data/settings.json
 data/shows.json
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
+# IDE files
+.vscode/
+.idea/

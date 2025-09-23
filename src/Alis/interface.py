@@ -19,6 +19,9 @@ import logging
 from menu_controller import MenuController
 from screen_controller import ScreenController
 import multiprocessing
+import os
+import status_manager
+from status_manager import is_connected, get_wifi_signal_strength, get_local_ip
 
 # Quiet all PIL logs:
 logging.getLogger("PIL").setLevel(logging.WARNING)
@@ -30,6 +33,8 @@ DEBOUNCE_S = 0.05
 #lcd settings
 RENDER_INTERVAL = 0.1  # seconds
 ROTATION = 270          # degrees, read once at startup
+
+STATUS_UPDATE = 20 #seconds = update timer for network status
 
 def draw_frame():
     """Example stub to draw a frame on the LCD."""
@@ -43,7 +48,10 @@ def orient_image(img: Image.Image, lcd) -> Image.Image:
     out = out.resize((lcd.width, lcd.height))
     return out
 
-def show_splash(lcd, path="assets/splash.png"):
+def show_splash(lcd, path=None):
+    if path is None:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(base_dir, "assets", "splash.png")
     try:
         splash = Image.open(path).convert("RGB")
         splash = orient_image(splash, lcd)
@@ -76,6 +84,11 @@ def start_interface(current_settings: dict, shutdown_event: threading.Event, set
         menu = MenuController(screen, current_settings, settings_lock, settings_changed)
         menu.start_menu()
 
+        screen.connected = status_manager.is_connected()
+        screen.signal = status_manager.get_wifi_signal_strength()
+        screen.address = status_manager.get_local_ip()
+
+
         # Setup buttons with gpiozero
         for name, pin in BTN_PINS.items():
             btn = Button(pin, bounce_time=DEBOUNCE_S)
@@ -86,6 +99,7 @@ def start_interface(current_settings: dict, shutdown_event: threading.Event, set
         # --- main loop ---
         last_activity = time.time()
         display_on = True
+        last_status_update = 0
 
         while not shutdown_event.is_set():
             menu_change = menu.get_change()
@@ -106,6 +120,13 @@ def start_interface(current_settings: dict, shutdown_event: threading.Event, set
                 lcd.bl_DutyCycle(0)
                 display_on = False
                 print("Display turned OFF (sleep)", flush=True)
+
+            now = time.time()
+            if now - last_status_update > STATUS_UPDATE:
+                screen.connected = is_connected()
+                screen.signal = get_wifi_signal_strength()
+                screen.address = get_local_ip()
+                last_status_update = now
 
             # Wait up to RENDER_INTERVAL, but break early if shutdown requested
             if shutdown_event.wait(RENDER_INTERVAL):
