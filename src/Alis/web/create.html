@@ -85,6 +85,12 @@
             gap: 0.7em;
             touch-action: pan-y;
         }
+        .entry-tile span {
+            margin-bottom: 0.3em;
+        }
+        .entry-tile span:last-child {
+            margin-bottom: 0;
+        }
         .entry-tile .move-btn {
             background: #23272f;
             color: #ffd600;
@@ -115,6 +121,12 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            flex-wrap: wrap;
+            border: 2px solid #2979ff; /* Add this line for outline */
+        }
+        .show-item .show-actions {
+            display: flex;
+            gap: 0.5em;
         }
         .show-item .edit-btn, .show-item .delete-btn {
             background: #2979ff;
@@ -222,6 +234,8 @@
                 const div = document.createElement("div");
                 div.className = "show-item";
                 div.innerHTML = `<span>${show.name} (${show.width}x${show.height} ${show.shape})</span>`;
+                const actions = document.createElement("span");
+                actions.className = "show-actions";
                 const editBtn = document.createElement("button");
                 editBtn.className = "edit-btn";
                 editBtn.textContent = "Edit";
@@ -240,8 +254,9 @@
                         resetForm();
                     }
                 };
-                div.appendChild(editBtn);
-                div.appendChild(delBtn);
+                actions.appendChild(editBtn);
+                actions.appendChild(delBtn);
+                div.appendChild(actions);
                 showList.appendChild(div);
             });
         }
@@ -381,6 +396,10 @@
                 } else if (entry.type === "text") {
                     div.innerHTML += `<span>FPS: ${entry.fps}</span>`;
                 }
+                // Button container
+                const btnGroup = document.createElement("span");
+                btnGroup.style.display = "flex";
+                btnGroup.style.gap = "0.5em";
                 // Move up/down buttons
                 const upBtn = document.createElement("button");
                 upBtn.className = "move-btn";
@@ -390,14 +409,15 @@
                 downBtn.className = "move-btn";
                 downBtn.textContent = "↓";
                 downBtn.onclick = () => moveEntry(idx, 1);
-                div.appendChild(upBtn);
-                div.appendChild(downBtn);
                 // Delete button
                 const delBtn = document.createElement("button");
                 delBtn.className = "delete-btn";
                 delBtn.textContent = "✕";
                 delBtn.onclick = () => { showEntries.splice(idx, 1); renderEntryList(); };
-                div.appendChild(delBtn);
+                btnGroup.appendChild(upBtn);
+                btnGroup.appendChild(downBtn);
+                btnGroup.appendChild(delBtn);
+                div.appendChild(btnGroup);
                 entryList.appendChild(div);
             });
         }

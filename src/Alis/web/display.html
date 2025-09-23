@@ -51,6 +51,9 @@
             background: #1565c0;
             border: 2px solid #fff;
         }
+        .top-buttons button:last-child {
+            margin-bottom: 1em;
+        }
         .list-container {
             max-height: 60vh;
             overflow-y: auto;
@@ -90,6 +93,60 @@
         .hidden {
             display: none;
         }
+        .size-filter-container {
+            position: fixed;
+            top: 20px;
+            right: 16px;
+            z-index: 10;
+            background: rgba(41,121,255,0.95);
+            border-radius: 0.5em;
+            padding: 0.5em 1em;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+        }
+        .size-filter-container label {
+            color: #fff;
+            font-weight: bold;
+            margin-right: 0.5em;
+        }
+        .size-filter-container select {
+            font-size: 1.2em;
+            border-radius: 0.5em;
+            padding: 0.2em;
+            border: none;
+            background: #fff;
+            color: #222831;
+        }
+
+        @media (max-width: 600px) {
+            .top-buttons {
+                flex-direction: column;
+                gap: 1em;
+                margin: 1em 0 0 0;
+                align-items: stretch;
+            }
+            .top-buttons button {
+                font-size: 1em;
+                padding: 0.7em 0.5em;
+                border-radius: 0.5em;
+                width: 90vw;
+                max-width: 350px;
+                margin: 0 auto;
+            }
+            .header {
+                height: 56px;
+                font-size: 1.2em;
+            }
+            .size-filter-container {
+                top: 8px;
+                right: 8px;
+                padding: 0.3em 0.6em;
+            }
+            .size-filter-container select {
+                font-size: 1em;
+            }
+        }
     </style>
 </head>
 <body>
@@ -101,9 +158,9 @@
         <button id="animationBtn">Animation</button>
         <button id="textBtn">Text</button>
     </div>
-    <div style="position:absolute; top:20px; right:30px;">
-        <label for="sizeFilter" style="color:#fff; font-weight:bold;">Size:</label>
-        <select id="sizeFilter" style="font-size:1.2em; border-radius:0.5em; padding:0.2em;">
+    <div class="size-filter-container">
+        <label for="sizeFilter">Size:</label>
+        <select id="sizeFilter">
             <option value="all">All</option>
             <!-- Sizes will be populated by JS -->
         </select>
@@ -265,6 +322,9 @@
                             headers: {"Content-Type": "application/json"},
                             body: JSON.stringify({name: img.name})
                         });
+                        // Remove highlight right after sending
+                        item.style.background = "";
+                        item.style.color = "";
                     };
                     imageList.appendChild(item);
                 });
@@ -295,6 +355,8 @@
                             headers: {"Content-Type": "application/json"},
                             body: JSON.stringify({name: anim.name})
                         });
+                        item.style.background = "";
+                        item.style.color = "";
                     };
                     animationImageList.appendChild(item);
                 });
@@ -329,6 +391,8 @@
                             headers: {"Content-Type": "application/json"},
                             body: JSON.stringify({name: txt.name})
                         });
+                        item.style.background = "";
+                        item.style.color = "";
                     };
                     textImageList.appendChild(item);
                 });
