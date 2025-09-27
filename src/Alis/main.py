@@ -24,6 +24,7 @@ SETTINGS_PATH = BASE_DIR / "data" / "settings.json"
 base = BASE_DIR / "uploaded"
 
 settings_lock = threading.Lock()
+#possibly not used yet, passed to interface ????
 settings_changed = threading.Event()
 shutdown_event = threading.Event()
 #amimation to led controller
@@ -31,15 +32,22 @@ frame_queue = queue.Queue()
 #web to animation controller
 web_animation_queue = multiprocessing.Queue()
 #show controller to animation
-show_animation_qeue = queue.Queue()
+show_animation_queue = queue.Queue()
 #web to show controller
 web_show_queue = multiprocessing.Queue()
+#main to web initialy sending current settings
+main_web_queue = multiprocessing.Queue()
 #thread communication
 interface_que = multiprocessing.Queue()
 #animation controller completing events from show
 show_entry_complete_event = threading.Event()
+# interface to web_server for current settings
+interface_web_queue = multiprocessing.Queue()
+#web to interface for settings chage
+web_interface_queue = multiprocessing.Queue()
 
 manager = Manager()
+interface_web_queue = manager.Queue()
 current_settings = manager.dict({"Animation Mode": "idle"})
 settings_lock = Lock()
 
@@ -84,11 +92,13 @@ def run_web_server(web_animation_queue, current_settings, settings_lock):
     web_server.app.state.web_show_queue = web_show_queue
     web_server.app.state.current_settings = current_settings
     web_server.app.state.settings_lock = settings_lock
+    web_server.app.state.interface_web_queue = interface_web_queue
+    web_server.app.state.web_interface_queue = web_interface_queue
     uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=False)
 
 def start_web_server_monitor(web_animation_queue, current_settings, settings_lock):
     while not shutdown_event.is_set():
-        proc = multiprocessing.Process(target=run_web_server, args=(web_animation_queue, current_settings, settings_lock))
+        proc = multiprocessing.Process(target=run_web_server, args=(web_animation_queue, interface_web_queue, web_interface_queue))
         proc.start()
         print("Web server started.")
         while proc.is_alive() and not shutdown_event.is_set():
@@ -134,7 +144,7 @@ def main():
     # -------------------- Start interface thread --------------------
     interface_thread = threading.Thread(
         target=start_interface,
-        args=(current_settings, shutdown_event, settings_lock, interface_que, settings_changed),
+        args=(current_settings, shutdown_event, settings_lock, interface_que, settings_changed,interface_web_queue,web_interface_queue),
         name="InterfaceThread",
         daemon=False,
     )
@@ -158,7 +168,7 @@ def main():
         current_settings=current_settings,
         settings_lock=settings_lock,
         web_animation_queue=web_animation_queue,
-        show_animation_qeue=show_animation_qeue,
+        show_animation_qeue=show_animation_queue,
         show_entry_complete_event=show_entry_complete_event
     )
     animation_controller.start()
@@ -167,7 +177,7 @@ def main():
     # -------------------- Start show controller thread --------------------
     show_controller = ShowController(
         web_show_queue,
-        show_animation_qeue,
+        show_animation_queue,
         show_entry_complete_event
     )
     show_controller.start()
@@ -180,7 +190,7 @@ def main():
 
     # -------------------- Start web server monitor --------------------
     web_server_monitor = multiprocessing.Process(
-        target=start_web_server_monitor, args=(web_animation_queue, current_settings, settings_lock)
+        target=start_web_server_monitor, args=(web_animation_queue, interface_web_queue, web_interface_queue)
     )
     web_server_monitor.start()
     print("Web server monitor started.", flush=True)

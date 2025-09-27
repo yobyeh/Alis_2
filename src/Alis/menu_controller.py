@@ -74,7 +74,7 @@ class MenuController:
         self.change = 1
         screen_current, option_current = self.get_pointer_location()
         self.pointer_tracker[screen_current][option_current] = 0
-        print(screen_current,option_current)
+        print(screen_current, option_current)
         match direction:
             case "UP":
                 #if on the top flip to bottom
@@ -92,6 +92,24 @@ class MenuController:
                 #if not move down one
                 else:
                     self.pointer_tracker[screen_current][option_current + 1] = 1
+            case "LEFT":
+                # # Move to previous screen if possible
+                # if screen_current > 0:
+                #     self.pointer_tracker[screen_current - 1][0] = 1
+                # else:
+                #     # wrap to last screen
+                #     self.pointer_tracker[len(self.pointer_tracker) - 1][0] = 1
+                self.pointer_tracker[screen_current][option_current] = 1
+                print("left")
+            case "RIGHT":
+                # # Move to next screen if possible
+                # if screen_current < len(self.pointer_tracker) - 1:
+                #     self.pointer_tracker[screen_current + 1][0] = 1
+                # else:
+                #     # wrap to first screen
+                #     self.pointer_tracker[0][0] = 1
+                self.pointer_tracker[screen_current][option_current] = 1
+                print("right")
             case "SELECT":
                 # If main menu, dive into submenu
                 if screen_current == 0:

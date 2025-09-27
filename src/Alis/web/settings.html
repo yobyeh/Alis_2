@@ -30,12 +30,95 @@
             font-weight: bold;
             letter-spacing: 0.05em;
         }
+        #settings-list {
+            max-width: 500px;
+            margin: 2em auto;
+            background: #23272f;
+            border-radius: 1em;
+            padding: 2em;
+        }
+        #settings-list h2 {
+            color: #fff;
+            margin-bottom: 1em;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <a href="/web/home.html">Alis</a>
     </div>
-    <!-- Page-specific content goes here -->
+    <div id="settings-list">
+        <h2>Settings</h2>
+        <!-- Settings will be rendered here -->
+    </div>
+    <script>
+async function fetchMenuData() {
+    const res = await fetch("/api/settings_options");
+    return res.json();
+}
+
+async function renderSettings() {
+    const { settings, current } = await fetchMenuData();
+    const settingsList = document.getElementById("settings-list");
+    settingsList.innerHTML = `<h2 style=\"color:#fff; margin-bottom:1em;\">Settings</h2>`;
+
+    settings.forEach(({name, options, default: defaultValue, action}) => {
+        const div = document.createElement("div");
+        div.style.marginBottom = "1.5em";
+        div.innerHTML = `<label style=\"color:#fff; font-weight:bold; margin-right:1em;\">${name}</label>`;
+        if (name === "Animation Mode") {
+            // Display as read-only value
+            const span = document.createElement("span");
+            span.style.fontSize = "1.1em";
+            span.style.marginLeft = "0.7em";
+            span.style.color = "#ffd600";
+            span.textContent = current && current[name] !== undefined ? current[name] : defaultValue;
+            div.appendChild(span);
+        } else if (Array.isArray(options) && options.length > 0) {
+            const select = document.createElement("select");
+            select.style.fontSize = "1.1em";
+            select.style.borderRadius = "0.4em";
+            select.style.padding = "0.3em 0.7em";
+            select.style.marginLeft = "0.5em";
+            select.style.background = "#fff";
+            select.style.color = "#222831";
+            options.forEach(opt => {
+                const option = document.createElement("option");
+                option.value = opt;
+                option.textContent = opt;
+                if (opt == (current && current[name] !== undefined ? current[name] : defaultValue)) option.selected = true;
+                select.appendChild(option);
+            });
+            select.onchange = async () => {
+                await fetch("/api/update_setting", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({setting: name, value: select.value})
+                });
+            };
+            div.appendChild(select);
+        } else {
+            // For actions like save/reset, just show a button
+            const btn = document.createElement("button");
+            btn.textContent = name;
+            btn.style.fontSize = "1.1em";
+            btn.style.borderRadius = "0.4em";
+            btn.style.padding = "0.3em 0.7em";
+            btn.style.marginLeft = "0.5em";
+            btn.onclick = async () => {
+                await fetch("/api/update_setting", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({setting: name, value: null})
+                });
+            };
+            div.appendChild(btn);
+        }
+        settingsList.appendChild(div);
+    });
+}
+
+renderSettings();
+</script>
 </body>
 </html>

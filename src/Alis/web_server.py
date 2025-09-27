@@ -17,7 +17,41 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Ensure preview directory exists before mounting
 Path("uploaded/images/preview").mkdir(parents=True, exist_ok=True)
 
+import threading
+
 app = FastAPI()
+
+# Global cache for current settings
+current_settings_cache = {}
+
+# Background thread to monitor interface_web_queue
+def interface_settings_monitor():
+    import time
+    while True:
+        try:
+            if hasattr(app.state, "interface_web_queue") and app.state.interface_web_queue:
+                try:
+                    print("int web que msg", flush=True)
+                    msg = app.state.interface_web_queue.get_nowait()
+                    if isinstance(msg, dict) and msg.get("type") == "settings_update":
+                        settings = msg.get("settings")
+                        if isinstance(settings, dict):
+                            print(f"[web_server] Received settings_update: {settings}", flush=True)
+                            current_settings_cache.clear()
+                            current_settings_cache.update(settings)
+                            print(f"[web_server] Updated current_settings_cache: {current_settings_cache}", flush=True)
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"[web_server] Error in interface_settings_monitor: {e}", flush=True)
+        time.sleep(0.2)
+
+# Start the background thread on startup
+@app.on_event("startup")
+def start_settings_monitor():
+    print("starting monitor thread")
+    t = threading.Thread(target=interface_settings_monitor, daemon=True)
+    t.start()
 preview_dir = os.path.join(BASE_DIR, "uploaded", "images", "preview")
 app.mount("/web/images/preview", StaticFiles(directory=preview_dir), name="preview")
 app.mount("/web/animations/preview", StaticFiles(directory="uploaded/animations/preview"), name="preview")
@@ -269,6 +303,60 @@ async def run_show(data: dict = Body(...)):
     web_show_queue = app.state.web_show_queue  # You need to set this up in your app
     web_show_queue.put({"type": "play_show", "name": show_name})
     return {"status": "ok", "name": show_name}
+
+# Endpoint: /api/update_setting
+# This endpoint receives a POST request with JSON:
+# {
+#   "setting": "LED Brightness",
+#   "value": 3
+# }
+# When a dropdown value is changed on the frontend, send this request.
+# The backend should:
+#   - Acquire settings_lock
+#   - Update current_settings[setting] = value
+#   - Optionally send a message to the relevant controller/queue if needed
+#   - Release settings_lock
+#   - Return success
+
+@app.post("/api/update_setting")
+async def update_setting(request: Request):
+    # Parse the incoming JSON
+    data = await request.json()
+    setting = data.get("setting")
+    value = data.get("value")
+
+    # Send message to web_interface_event queue if available
+    msg = {"type": "settings_change", "setting": setting, "value": value}
+    if hasattr(app.state, "web_interface_event") and app.state.web_interface_event:
+        try:
+            app.state.web_interface_event.put(msg)
+        except Exception as e:
+            print(f"Failed to put message on web_interface_event: {e}", flush=True)
+    else:
+        print("web_interface_event queue not available in app.state", flush=True)
+    return {"status": "ok"}
+
+@app.get("/api/settings_options")
+async def settings_options():
+    import json
+    menu_path = os.path.join(BASE_DIR, "data", "menu_data.json")
+    with open(menu_path, "r") as f:
+        menu_data = json.load(f)
+    # Get all settings under "home" > "Settings"
+    settings_section = menu_data.get("home", {}).get("Settings", {})
+    settings_list = []
+    for name, info in settings_section.items():
+        settings_list.append({
+            "name": name,
+            "options": info.get("options", []),
+            "default": info.get("default", None),
+            "action": info.get("action", ""),
+        })
+    # Return both the menu layout and the latest current settings
+    return JSONResponse({
+        "settings": settings_list,
+        "current": dict(current_settings_cache)
+    })
 
 if __name__ == "__main__":
     uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=True)

@@ -8,6 +8,8 @@
 #   - gpiozero + lgpio backend (GPIOZERO_PIN_FACTORY=lgpio)
 
 # owns the screen controller,menu controller, and lcd
+# maintains up to date settings for web server
+
 import time
 import threading
 from PIL import Image
@@ -22,19 +24,20 @@ import multiprocessing
 import os
 import status_manager
 from status_manager import is_connected, get_wifi_signal_strength, get_local_ip
+from multiprocessing import Queue
 
 # Quiet all PIL logs:
 logging.getLogger("PIL").setLevel(logging.WARNING)
 
 # Button pins (BCM numbering)
-BTN_PINS = {"UP": 17, "DOWN": 22, "SELECT": 23, "BACK": 24}
+BTN_PINS = {"UP": 17, "DOWN": 23, "LEFT":27, "RIGHT":22, "SELECT": 25, "BACK": 24}
 DEBOUNCE_S = 0.05
-
 #lcd settings
 RENDER_INTERVAL = 0.1  # seconds
 ROTATION = 270          # degrees, read once at startup
 
 STATUS_UPDATE = 20 #seconds = update timer for network status
+
 
 def draw_frame():
     """Example stub to draw a frame on the LCD."""
@@ -63,9 +66,14 @@ def show_splash(lcd, path=None):
 def show_menu(lcd, menu, screen): 
         lcd.ShowImage(menu.get_frame(),lcd)
 
-def start_interface(current_settings: dict, shutdown_event: threading.Event, settings_lock: threading.Lock, interface_que:multiprocessing.Queue, settings_changed: threading.Event):
+def start_interface(current_settings: dict, shutdown_event: threading.Event, settings_lock: threading.Lock, interface_que:multiprocessing.Queue, settings_changed: threading.Event,interface_web_queue, web_interface_queue):
     print("starting interface", flush=True)
 
+    # Initialize last_sent_settings as a copy of current_settings
+    with settings_lock:
+        last_sent_settings = dict(current_settings)
+    changed = True  # Force initial send of settings
+    
     lcd = None
     buttons = {}
     with settings_lock:
@@ -127,6 +135,43 @@ def start_interface(current_settings: dict, shutdown_event: threading.Event, set
                 screen.signal = get_wifi_signal_strength()
                 screen.address = get_local_ip()
                 last_status_update = now
+            
+            # Monitor for new messages on the web_interface_event queue
+            try:
+                while True:
+                    msg = web_interface_queue.get_nowait()
+                    print(f"Received message from web_interface_queue: {msg}", flush=True)
+                    if isinstance(msg, dict) and msg.get("type") == "settings_change":
+                        setting = msg.get("setting")
+                        value = msg.get("value")
+                        if setting is not None:
+                            with settings_lock:
+                                current_settings[setting] = value
+                            print(f"Updated current_settings['{setting}'] to {value}", flush=True)
+            except Exception:
+                pass
+
+
+            # Monitor current_settings for changes and only send if changed
+            with settings_lock:
+                if not changed:
+                    for k, v in current_settings.items():
+                        if last_sent_settings.get(k) != v:
+                            print("settings changed = true", flush=True)
+                            changed = True
+                            break
+            if changed:
+                with settings_lock:
+                    last_sent_settings = dict(current_settings)
+                    # Send updated settings to web server (interface_web_queue)
+                    try:
+                        msg = {"type": "settings_update", "settings": dict(current_settings)}
+                        print(f"[interface] Sending updated settings to web server: {msg}", flush=True)
+                        interface_web_queue.put(msg)
+                    except Exception as e:
+                        print(f"Failed to send settings to web server: {e}", flush=True)
+                print("settings changed = false", flush=True)
+                changed = False
 
             # Wait up to RENDER_INTERVAL, but break early if shutdown requested
             if shutdown_event.wait(RENDER_INTERVAL):

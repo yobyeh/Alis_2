@@ -55,14 +55,20 @@ class AnimationController(threading.Thread):
         self.display_text = ""
         #self.draw_matrix = self.new_draw_matrix()
 
+        self.set_idle()
+
+    def set_idle(self):
+        with self.settings_lock:
+            self.current_settings["Animation Mode"] = "idle"
+    
     def get_brightness(self):
         with self.settings_lock:
             self.brightness = self.current_settings["LED brightness"]
 
     #set new mode in current settings
-    def set_mode(self):
+    def set_mode(self, new_mode):
         with self.settings_lock:
-            self.current_settings["Animation Mode"] = self.mode
+            self.current_settings["Animation Mode"] = new_mode
 
     def convert_html_to_GRB(self):
         pass
@@ -108,6 +114,8 @@ class AnimationController(threading.Thread):
         try:
             while not self.shutdown_event.is_set():
                 msg = None
+                with self.settings_lock:
+                    print(self.current_settings)
                 try:
                     msg = self.show_animation_qeue.get(timeout=0.1)
                 except queue.Empty:
@@ -120,10 +128,12 @@ class AnimationController(threading.Thread):
 
                 # Handle mode change message
                 if msg and isinstance(msg, dict) and msg.get("type") == "mode":
-                    self.mode = msg.get("mode")
-                    self.set_mode()
-                    print(f"Mode changed to {self.mode}")
-                    self.frame_count = 0
+                    new_mode = msg.get("mode")
+                    if new_mode != self.mode:
+                        self.mode = new_mode
+                        self.set_mode(new_mode)
+                        print(f"Mode changed to {self.mode}")
+                        self.frame_count = 0
                     continue  # Restart loop with new mode
 
                 match self.mode:
