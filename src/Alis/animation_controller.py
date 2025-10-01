@@ -16,7 +16,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class AnimationController(threading.Thread):
     def __init__(self, stop_evt, frame_queue,
-                current_settings, settings_lock,web_animation_queue, show_animation_qeue, show_entry_complete_event):
+                current_settings, settings_lock,web_animation_queue, show_animation_qeue, show_entry_complete_event, interface_animation_queue):
         super().__init__(name="AnimationControllerThread")
         self.shutdown_event = stop_evt
         self.frame_queue = frame_queue
@@ -25,6 +25,7 @@ class AnimationController(threading.Thread):
         #queues communication
         self.web_animation_queue = web_animation_queue
         self.show_animation_qeue = show_animation_qeue
+        self.interface_animation_queue = interface_animation_queue
 
         self.mode = "idle"
         self.pixels = 256
@@ -117,14 +118,19 @@ class AnimationController(threading.Thread):
                 with self.settings_lock:
                     print(self.current_settings)
                 try:
-                    msg = self.show_animation_qeue.get(timeout=0.1)
+                    msg = self.show_animation_qeue.get(timeout=0.05)
                 except queue.Empty:
                     pass
                 if msg is None:
                     try:
-                        msg = self.web_animation_queue.get(timeout=0.1)
+                        msg = self.web_animation_queue.get(timeout=0.05)
                     except queue.Empty:
                         pass
+                if msg is None:
+                    try:
+                        msg = self.interface_animation_queue.get(timeout=0.05)
+                    except queue.Empty:
+                        pass    
 
                 # Handle mode change message
                 if msg and isinstance(msg, dict) and msg.get("type") == "mode":

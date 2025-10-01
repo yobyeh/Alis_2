@@ -4,6 +4,7 @@
 #owns the setting changes
 
 #getting brightness to update with event flag
+#pulls show list for menu display
 
 import json
 import os
@@ -12,9 +13,14 @@ from screen_controller import ScreenController
 
 class MenuController:
     # current settings data, settings thread lock, settings changed thread event
-    def __init__(self, screen_controller, current_settings, settings_lock, settings_changed):
+    def __init__(self, screen_controller,
+                current_settings, settings_lock,
+                settings_changed, 
+                interface_animation_queue,
+                interface_show_queue):
         base_dir = Path(__file__).parent
         self.menu_path = base_dir / "data" / "menu_data.json"
+        self.shows_path = base_dir / "data" / "shows.json"
         self.menu_data = self.load_menu()
         self.screens = list(self.menu_data.get("screens", {}).keys())
         self.pointer_tracker = []
@@ -25,6 +31,10 @@ class MenuController:
         self.current_settings = current_settings
         self.settings_lock = settings_lock
         self.settings_changed = settings_changed
+        self.shows_list = []
+        self.show_screen = False
+        self.interface_animation_queue = interface_animation_queue
+        self.interface_show_queue = interface_show_queue
 
     # 1 is the location of the pointer in the menu structure
     def start_point_tracker(self):
@@ -50,7 +60,8 @@ class MenuController:
     def get_frame(self):
         self.change = 0
         screen_idx, option_idx = self.get_pointer_location()
-        img = self.screen_controller.draw_screen(screen_idx, option_idx, self.menu_data)
+        self.handle_show_menu(screen_idx, option_idx)
+        img = self.screen_controller.draw_screen(screen_idx, option_idx, self.menu_data, self.shows_list)
         return img
 
     def get_change(self):
@@ -115,9 +126,16 @@ class MenuController:
                 if screen_current == 0:
                     self.pointer_tracker[option_current + 1][0] = 1
                 # If already in submenu, stay or run command
+                elif screen_current == 1:
+                    #send show name to animation controller
+                    if self.shows_list:
+                        show_name = self.shows_list[option_current]
+                        self.interface_show_queue.put({"type": "play_show", "name": show_name})
+                        self.pointer_tracker[screen_current][option_current] = 1
                 else:
                     self.pointer_tracker[screen_current][option_current] = 1
                     self.do_action(screen_current, option_current)
+                
             case "BACK":
                 self.pointer_tracker[0][0] = 1
             case _:
@@ -139,7 +157,7 @@ class MenuController:
         setting_name = option_list[option_current]
 
         with self.settings_lock:
-            if action == "value" and available_values:
+            if action in ("update_int", "update_string") and available_values:
                 current_value = self.current_settings.get(setting_name)
                 try:
                     idx = available_values.index(current_value)
@@ -153,7 +171,39 @@ class MenuController:
             else:
                 # Handle other actions (e.g., save, reset)
                 pass
+    
+    def get_show_list(self):
+        """
+        Returns a list of show names from shows.json.
+        """
+        shows_path = Path(__file__).parent / "data" / "shows.json"
+        try:
+            with open(shows_path, "r") as f:
+                data = json.load(f)
+            return [show["name"] for show in data.get("shows", [])]
+        except Exception as e:
+            print(f"Error loading show names: {e}")
+            return []
+    
+    def handle_show_menu(self, screen, option):
+        #entered show screen
+        if self.show_screen == False and screen == 1:
+            self.show_screen = True
+            self.shows_list = self.get_show_list()
+            #update array for number of shows
+            if self.shows_list:
+                self.pointer_tracker[1] = []
+                for show in self.shows_list:
+                    self.pointer_tracker[1].append(0)
+                self.pointer_tracker[1][0] = 1
+        #exited show screen
+        elif self.show_screen == True and screen != 1:
+            self.show_screen = False
+        else:
+            pass
 
+
+    
     def load_menu(self):
         if self.menu_path.exists():
             with open(self.menu_path, "r") as f:

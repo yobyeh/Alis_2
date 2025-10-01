@@ -31,7 +31,6 @@ def interface_settings_monitor():
         try:
             if hasattr(app.state, "interface_web_queue") and app.state.interface_web_queue:
                 try:
-                    print("int web que msg", flush=True)
                     msg = app.state.interface_web_queue.get_nowait()
                     if isinstance(msg, dict) and msg.get("type") == "settings_update":
                         settings = msg.get("settings")
@@ -325,15 +324,15 @@ async def update_setting(request: Request):
     setting = data.get("setting")
     value = data.get("value")
 
-    # Send message to web_interface_event queue if available
+    # Send message to web_interface_queue queue if available
     msg = {"type": "settings_change", "setting": setting, "value": value}
-    if hasattr(app.state, "web_interface_event") and app.state.web_interface_event:
+    if hasattr(app.state, "web_interface_queue") and app.state.web_interface_queue:
         try:
-            app.state.web_interface_event.put(msg)
+            app.state.web_interface_queue.put(msg)
         except Exception as e:
-            print(f"Failed to put message on web_interface_event: {e}", flush=True)
+            print(f"Failed to put message on web_interface_queue: {e}", flush=True)
     else:
-        print("web_interface_event queue not available in app.state", flush=True)
+        print("web_interface_queue queue not available in app.state", flush=True)
     return {"status": "ok"}
 
 @app.get("/api/settings_options")
@@ -342,10 +341,18 @@ async def settings_options():
     menu_path = os.path.join(BASE_DIR, "data", "menu_data.json")
     with open(menu_path, "r") as f:
         menu_data = json.load(f)
-    # Get all settings under "home" > "Settings"
+    # Get all settings under "home" > "Settings" and "home" > "LED Config"
     settings_section = menu_data.get("home", {}).get("Settings", {})
+    led_config_section = menu_data.get("home", {}).get("LED Config", {})
     settings_list = []
     for name, info in settings_section.items():
+        settings_list.append({
+            "name": name,
+            "options": info.get("options", []),
+            "default": info.get("default", None),
+            "action": info.get("action", ""),
+        })
+    for name, info in led_config_section.items():
         settings_list.append({
             "name": name,
             "options": info.get("options", []),

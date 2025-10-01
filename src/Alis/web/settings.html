@@ -63,18 +63,21 @@ async function renderSettings() {
     settingsList.innerHTML = `<h2 style=\"color:#fff; margin-bottom:1em;\">Settings</h2>`;
 
     settings.forEach(({name, options, default: defaultValue, action}) => {
-        const div = document.createElement("div");
-        div.style.marginBottom = "1.5em";
-        div.innerHTML = `<label style=\"color:#fff; font-weight:bold; margin-right:1em;\">${name}</label>`;
         if (name === "Animation Mode") {
-            // Display as read-only value
+            const div = document.createElement("div");
+            div.style.marginBottom = "1.5em";
+            div.innerHTML = `<label style=\"color:#fff; font-weight:bold; margin-right:1em;\">${name}</label>`;
             const span = document.createElement("span");
             span.style.fontSize = "1.1em";
             span.style.marginLeft = "0.7em";
             span.style.color = "#ffd600";
             span.textContent = current && current[name] !== undefined ? current[name] : defaultValue;
             div.appendChild(span);
+            settingsList.appendChild(div);
         } else if (Array.isArray(options) && options.length > 0) {
+            const div = document.createElement("div");
+            div.style.marginBottom = "1.5em";
+            div.innerHTML = `<label style=\"color:#fff; font-weight:bold; margin-right:1em;\">${name}</label>`;
             const select = document.createElement("select");
             select.style.fontSize = "1.1em";
             select.style.borderRadius = "0.4em";
@@ -97,24 +100,8 @@ async function renderSettings() {
                 });
             };
             div.appendChild(select);
-        } else {
-            // For actions like save/reset, just show a button
-            const btn = document.createElement("button");
-            btn.textContent = name;
-            btn.style.fontSize = "1.1em";
-            btn.style.borderRadius = "0.4em";
-            btn.style.padding = "0.3em 0.7em";
-            btn.style.marginLeft = "0.5em";
-            btn.onclick = async () => {
-                await fetch("/api/update_setting", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({setting: name, value: null})
-                });
-            };
-            div.appendChild(btn);
+            settingsList.appendChild(div);
         }
-        settingsList.appendChild(div);
     });
 }
 

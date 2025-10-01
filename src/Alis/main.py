@@ -37,14 +37,16 @@ show_animation_queue = queue.Queue()
 web_show_queue = multiprocessing.Queue()
 #main to web initialy sending current settings
 main_web_queue = multiprocessing.Queue()
-#thread communication
-interface_que = multiprocessing.Queue()
 #animation controller completing events from show
 show_entry_complete_event = threading.Event()
 # interface to web_server for current settings
 interface_web_queue = multiprocessing.Queue()
 #web to interface for settings chage
 web_interface_queue = multiprocessing.Queue()
+#interface to animation controller
+interface_animation_queue = queue.Queue()
+#interface to show controller
+interface_show_queue = queue.Queue()
 
 manager = Manager()
 interface_web_queue = manager.Queue()
@@ -144,7 +146,14 @@ def main():
     # -------------------- Start interface thread --------------------
     interface_thread = threading.Thread(
         target=start_interface,
-        args=(current_settings, shutdown_event, settings_lock, interface_que, settings_changed,interface_web_queue,web_interface_queue),
+        args=(current_settings,
+               shutdown_event,
+                 settings_lock,
+                   settings_changed,
+                   interface_web_queue
+                   ,web_interface_queue,
+                   interface_animation_queue,
+                   interface_show_queue),
         name="InterfaceThread",
         daemon=False,
     )
@@ -169,7 +178,8 @@ def main():
         settings_lock=settings_lock,
         web_animation_queue=web_animation_queue,
         show_animation_qeue=show_animation_queue,
-        show_entry_complete_event=show_entry_complete_event
+        show_entry_complete_event=show_entry_complete_event,
+        interface_animation_queue=interface_animation_queue
     )
     animation_controller.start()
     print("Animation controller thread started.", flush=True)
@@ -178,7 +188,8 @@ def main():
     show_controller = ShowController(
         web_show_queue,
         show_animation_queue,
-        show_entry_complete_event
+        show_entry_complete_event,
+        interface_show_queue
     )
     show_controller.start()
     print("Show controller thread started.", flush=True)

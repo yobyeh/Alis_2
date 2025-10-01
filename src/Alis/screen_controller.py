@@ -44,7 +44,7 @@ class ScreenController:
     #x y x y 
     #recieves: current screen index, current option index, and menu data
     #6 on screen options at 20pt
-    def draw_screen(self, screen, selection, menu_data):
+    def draw_screen(self, screen, selection, menu_data, shows_list):
         print(f"Drawing screen: screen={screen}, selection={selection}, address={self.address}, signal={self.signal}")
         # Swap width and height for portrait orientation
         #background
@@ -88,8 +88,11 @@ class ScreenController:
         if screen == 0:
             for option in menu_data["home"]:
                 draw.text((10, 40 + i * 30), option, fill="white", font=self.font)
-                #draw.text((250, 40 + i * 30), "Value", fill="white", font=font)
                 i += 1
+        elif screen == 1:
+                for name in shows_list:
+                    draw.text((10, 40 + i * 30), name, fill="white", font=self.font)
+                    i += 1
         else:
             current_screen = screen_list[screen]
             i = 0

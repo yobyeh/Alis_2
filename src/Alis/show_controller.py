@@ -7,18 +7,24 @@ from multiprocessing import Queue
 
 
 class ShowController(threading.Thread):
-    def __init__(self, web_show_queue, show_animation_queue, show_entry_complete_event, shows_json_path=None):
+    def __init__(self, web_show_queue,
+                  show_animation_queue,
+                    show_entry_complete_event,
+                    interface_show_queue,
+                    shows_json_path=None
+                    ):
         super().__init__()
         base_dir = os.path.dirname(os.path.abspath(__file__))
         if shows_json_path is None:
             shows_json_path = os.path.join(base_dir, "data", "shows.json")
         self.shows_json_path = shows_json_path
-        self.show_queue = web_show_queue  # Receives commands from web server
+        self.web_show_queue = web_show_queue  # Receives commands from web server
         self.animation_queue = show_animation_queue  # Sends entries to AnimationController
         self.current_show = None
         self.show_index = 0
         self.shutdown_event = threading.Event()
         self.show_entry_complete_event = show_entry_complete_event
+        self.interface_show_queue = interface_show_queue
 
     def load_shows(self):
         with open(self.shows_json_path, "r") as f:
@@ -29,10 +35,14 @@ class ShowController(threading.Thread):
             try:
                 msg = None
                 try:
-                    msg = self.show_queue.get(timeout=0.2)
+                    msg = self.web_show_queue.get(timeout=0.2)
                 except queue.Empty:
                     pass
-
+                try:
+                    msg = self.interface_show_queue.get(timeout=0.2)
+                except queue.Empty:
+                    pass
+                
                 if msg:
                     if msg.get("type") == "play_show":
                         show_name = msg.get("name")

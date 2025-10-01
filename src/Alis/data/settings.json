@@ -1,8 +1,8 @@
 {
-  "Animation Mode": "static",
-  "LED Brightness": 5,
+  "Animation Mode": "animation",
+  "LED Brightness": "5",
   "Screen Brightness": 60,
-  "Sleep Timer": 5,
+  "Sleep Timer": 30,
   "LEDs Width": 0,
   "LEDs Height": 0,
   "Signal Start": "top L",

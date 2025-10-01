@@ -8,7 +8,8 @@
 #   - gpiozero + lgpio backend (GPIOZERO_PIN_FACTORY=lgpio)
 
 # owns the screen controller,menu controller, and lcd
-# maintains up to date settings for web server
+# maintains up to date settings for web server and server changing settings
+
 
 import time
 import threading
@@ -66,7 +67,14 @@ def show_splash(lcd, path=None):
 def show_menu(lcd, menu, screen): 
         lcd.ShowImage(menu.get_frame(),lcd)
 
-def start_interface(current_settings: dict, shutdown_event: threading.Event, settings_lock: threading.Lock, interface_que:multiprocessing.Queue, settings_changed: threading.Event,interface_web_queue, web_interface_queue):
+def start_interface(current_settings: dict,
+                    shutdown_event: threading.Event,
+                    settings_lock: threading.Lock,
+                    settings_changed: threading.Event,
+                    interface_web_queue,
+                    web_interface_queue,
+                    interface_animation_queue,
+                    interface_show_queue):
     print("starting interface", flush=True)
 
     # Initialize last_sent_settings as a copy of current_settings
@@ -89,7 +97,7 @@ def start_interface(current_settings: dict, shutdown_event: threading.Event, set
 
         #setup menu
         screen = ScreenController(lcd.width, lcd.height, current_settings, settings_lock)
-        menu = MenuController(screen, current_settings, settings_lock, settings_changed)
+        menu = MenuController(screen, current_settings, settings_lock, settings_changed,interface_animation_queue,interface_show_queue)
         menu.start_menu()
 
         screen.connected = status_manager.is_connected()

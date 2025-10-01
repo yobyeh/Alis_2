@@ -17,7 +17,7 @@
             },
             "LED Brightness":{
                 "link":"",
-                "action":"value",
+                "action":"update_int",
                 "default":2,
                 "options":[
                     1,
@@ -29,7 +29,7 @@
             },
             "Screen Brightness":{
                 "link":"",
-                "action":"value",
+                "action":"update_int",
                 "default":60,
                 "options":[
                     20,
@@ -41,7 +41,7 @@
             },
             "Sleep Timer":{
                 "link":"",
-                "action":"value",
+                "action":"update_int",
                 "active":"false",
                 "default":120,
                 "options":[
@@ -52,18 +52,6 @@
                     240,
                     300
                 ]
-            },
-            "Save Settings":{
-                "link":"",
-                "action":"save",
-                "default":-1,
-                "options":[]
-            },
-            "Reset Settings":{
-                "link":"",
-                "action":"default",
-                "default":-1,
-                "options":[]
             }
         },
         "Test":{
@@ -101,21 +89,21 @@
         "LED Config":{
             "LEDs Width":{
                 "link":"",
-                "action":"keypad_set",
+                "action":"keypad",
                 "default":0,
                 "options":[ 
                 ]
             },
             "LEDs Height":{
                 "link":"",
-                "action":"keypad_set",
+                "action":"keypad",
                 "default":0,
                 "options":[ 
                 ]
             },
             "Signal Start":{
                 "link":"",
-                "action":"string_value",
+                "action":"update_string",
                 "default":"top L",
                 "options":[
                     "top L",
@@ -126,7 +114,7 @@
             },
             "Signal Path":{
                 "link":"",
-                "action":"string_value",
+                "action":"update_string",
                 "default":"zig vert",
                 "options":[
                     "zig V",
@@ -135,7 +123,7 @@
             },
             "Color order":{
                 "link":"",
-                "action":"string_value",
+                "action":"update_string",
                 "default":"grb",
                 "options":[ 
                     "grb",
@@ -144,7 +132,7 @@
             },
             "FPS":{
                 "link":"",
-                "action":"value",
+                "action":"update_int",
                 "default":30,
                 "options":[ 
                     15,
@@ -152,16 +140,10 @@
                     60
                 ]
             }
+        },
+        "WiFi Config":{
         }
 
     }
-
-
-
-
-
-
-
-
 
 }
