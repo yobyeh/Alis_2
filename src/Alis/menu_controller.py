@@ -177,6 +177,7 @@ class MenuController:
         Returns a list of show names from shows.json.
         """
         shows_path = Path(__file__).parent / "data" / "shows.json"
+        print("attempting to read shows.json")
         try:
             with open(shows_path, "r") as f:
                 data = json.load(f)

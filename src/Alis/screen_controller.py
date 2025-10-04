@@ -3,6 +3,7 @@
 from PIL import Image, ImageDraw, ImageFont
 import threading
 import os
+import math
 
 class ScreenController:
 
@@ -17,6 +18,13 @@ class ScreenController:
         self.connected = False
         self.signal_images = []
         self.load_wifi_images()
+        self.lowercase = "abcdefghijklmnopqrstuvwxyz"
+        self.uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        self.numbers = "1234567890"
+        self.symbols = "@!#$%^&*()_-+=[]{}|:;\"',.<>/?~`"
+        self.text_center_x = 100
+        self.text_center_y = 100
+        #space and enter
 
     def get_font(self):
         try:
@@ -39,6 +47,37 @@ class ScreenController:
         self.signal_images.append(self.get_asset_image("high_signal.png"))
         print(f"Loaded {len(self.signal_images)} WiFi images.")
         print(f"Signal images loaded: {len(self.signal_images)}")
+
+    def get_arc_positions(center_x, center_y, radius, num_letters, start_angle=0, end_angle=180):
+        """
+        Returns a list of (x, y, angle) positions for letters arranged in an arc.
+        Angles are in degrees. 0 degrees is to the right, 90 is up.
+        """
+        positions = []
+        if num_letters == 1:
+            angles = [math.radians((start_angle + end_angle) / 2)]
+        else:
+            angles = [
+                math.radians(start_angle + i * (end_angle - start_angle) / (num_letters - 1))
+                for i in range(num_letters)
+            ]
+        for angle in angles:
+            x = center_x + radius * math.cos(angle)
+            y = center_y - radius * math.sin(angle)
+            positions.append((x, y, math.degrees(angle)))
+        return positions
+
+    def draw_rotated_text(img, text, position, angle, font, fill):
+        # Create a transparent image for the text
+        text_img = Image.new('RGBA', img.size, (255, 255, 255, 0))
+        draw = ImageDraw.Draw(text_img)
+        w, h = draw.textsize(text, font=font)
+        text_pos = (position[0] - w // 2, position[1] - h // 2)
+        draw.text(text_pos, text, font=font, fill=fill)
+        # Rotate around the center of the text
+        rotated = text_img.rotate(angle, center=position, resample=Image.BICUBIC)
+        # Composite onto base image
+        img.paste(rotated, (0, 0), rotated)
 
     #240 x 320
     #x y x y 
