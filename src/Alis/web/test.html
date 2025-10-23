@@ -1,11 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Alis</title>
+    <title>Test - Alis</title>
     <link rel="icon" href="/assets/favicon.png">
-    <link rel="shortcut icon" href="/assets/favicon.ico">
-    <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
-    <link rel="apple-touch-icon-precomposed" href="/assets/apple-touch-icon-precomposed.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
@@ -32,25 +29,16 @@
             font-weight: bold;
             letter-spacing: 0.05em;
         }
-        h1 {
-            font-size: 5em;
-            font-weight: bold;
-            color: #333;
-            text-align: center;
-        }
-        .main-buttons {
+        .main-content {
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: center;
+            min-height: 60vh;
             gap: 2em;
-            margin-top: 2em;
-            flex: 1;
-            padding-bottom: 120px; /* Prevent overlap with bottom bar */
         }
-        .main-buttons button {
-            width: 70vw;
-            max-width: 400px;
-            padding: 2em;
+        .main-content button {
+            padding: 1.5em 3em;
             font-size: 2em;
             border-radius: 1em;
             border: none;
@@ -61,7 +49,7 @@
             cursor: pointer;
             transition: background 0.2s;
         }
-        .main-buttons button:hover {
+        .main-content button:hover {
             background: #357abd;
         }
         .bottom-bar {
@@ -69,7 +57,7 @@
             justify-content: space-between;
             align-items: center;
             gap: 1em;
-            padding: 1em 3em; /* Increased horizontal padding */
+            padding: 1em 3em;
             background: #174ea6;
             position: fixed;
             bottom: 0;
@@ -95,7 +83,7 @@
             background: #357abd;
         }
         @media (max-width: 600px) {
-            .main-buttons button {
+            .main-content button {
                 width: 90vw;
                 max-width: none;
                 font-size: 1.3em;
@@ -121,27 +109,32 @@
     <div class="header">
         <a href="/web/home.html">Alis</a>
     </div>
-    <div class="main-buttons">
-        <button id="showsBtn">Shows</button>
-        <button id="displayBtn">Display</button>
-        <button id="drawBtn">Draw</button>
-        <button id="createBtn">Create/Modify</button>
+    <div class="main-content">
+        <button id="runTestBtn">Run Test</button>
+        <div id="testStatus" style="color:#fff;font-size:1.2em;"></div>
     </div>
     <div class="bottom-bar">
-        <button id="settingsBtn">Settings</button>
-        <div style="flex:1; display:flex; justify-content:center;">
-            <button id="testBtn">Test</button>
-        </div>
-        <button id="uploadBtn">Upload</button>
+        <button onclick="location.href='/web/settings.html'">Settings</button>
+        <button onclick="location.href='/web/home.html'">Home</button>
+        <button onclick="location.href='/web/upload.html'">Upload</button>
     </div>
     <script>
-        document.getElementById("showsBtn").onclick = () => location.href = "/web/shows.html";
-        document.getElementById("displayBtn").onclick = () => location.href = "/web/display.html";
-        document.getElementById("drawBtn").onclick = () => location.href = "/web/draw.html";
-        document.getElementById("createBtn").onclick = () => location.href = "/web/create.html";
-    document.getElementById("settingsBtn").onclick = () => location.href = "/web/settings.html";
-    document.getElementById("uploadBtn").onclick = () => location.href = "/web/upload.html";
-    document.getElementById("testBtn").onclick = () => location.href = "/web/test.html";
+        document.getElementById("runTestBtn").onclick = async function() {
+            const status = document.getElementById("testStatus");
+            status.textContent = "Running test...";
+            try {
+                // Replace '/api/run_test' with your actual endpoint
+                const resp = await fetch('/api/run_test', { method: 'POST' });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    status.textContent = data.message || "Test completed!";
+                } else {
+                    status.textContent = "Test failed to start.";
+                }
+            } catch (e) {
+                status.textContent = "Error: " + e;
+            }
+        };
     </script>
 </body>
 </html>

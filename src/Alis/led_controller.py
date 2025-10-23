@@ -149,10 +149,12 @@ class LEDController(threading.Thread):
     def _current_brightness(self) -> int:
         try:
             with self.settings_lock:
-                b = int(self.current_settings.get("led", {}).get("brightness", self.default_brightness))
-            return _clamp_byte(b)
-        except Exception:
-            return self.default_brightness
+                b = int(self.current_settings.get("LED Brightness", self.default_brightness))
+        except Exception as e:
+            print("default brightness due to exception:", e)
+            b = self.default_brightness
+        print(f"[LEDController] Using brightness: {b}")
+        return _clamp_byte(b)
 
     # --------- main loop ---------
     def run(self) -> None:
@@ -186,10 +188,14 @@ class LEDController(threading.Thread):
                     payload, br_override = item  # type: ignore[assignment]
                     payload = bytes(payload)
 
-                brightness = (
-                    _clamp_byte(int(br_override)) if br_override is not None else self._current_brightness()
-                )
+                if br_override is not None:
+                    print(f"[LEDController] Using per-frame brightness override: {br_override}")
+                    brightness = _clamp_byte(int(br_override))
+                else:
+                    print("[LEDController] Using _current_brightness()")
+                    brightness = self._current_brightness()
 
+                print(f"[LEDController] Sending frame with brightness: {brightness}")
                 try:
                     _send_frame(ser, payload, brightness)
                 except Exception as e:

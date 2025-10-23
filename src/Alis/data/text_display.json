@@ -8,18 +8,10 @@
     "font size": 40
   },
   {
-    "name": "WAAAAAAAAAAAAAA!",
-    "height": 16,
-    "width": 16,
-    "color": "#2979ff",
-    "scorll speed": 2,
-    "font size": 40
-  },
-  {
-    "name": "food",
-    "width": 16,
-    "height": 16,
-    "color": "#00ff11",
+    "name": "HIiiiiiiiiiiiiiiiiiiiiiiiii.       world",
+    "width": 14,
+    "height": 50,
+    "color": "#ffd600",
     "font size": 42,
     "scroll speed": 2
   }

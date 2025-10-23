@@ -15,6 +15,29 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 #hard coded pixels init and brightness 
 
 class AnimationController(threading.Thread):
+
+    # Only one mapping: vertical zigzag (serpentine) columns, start bottom left
+    def remap_matrix(self, frame):
+        """
+        Remap a 2D frame (numpy array) to a flat list of (r, g, b) tuples for vertical zigzag columns,
+        starting from the bottom left (column 0, row h-1), matching Teensy's flat strip order.
+        """
+        h, w, _ = frame.shape
+        remapped = []
+        for x in range(w):
+            if x % 2 == 0:
+                # Even column: bottom to top
+                for y in range(h-1, -1, -1):
+                    remapped.append(tuple(frame[y, x]))
+            else:
+                # Odd column: top to bottom
+                for y in range(h):
+                    remapped.append(tuple(frame[y, x]))
+        return remapped
+
+    @staticmethod
+    def gamma_correct(value, gamma=2.2):
+        return int(pow(value / 255.0, gamma) * 255 + 0.5)
     def __init__(self, stop_evt, frame_queue,
                 current_settings, settings_lock,web_animation_queue, show_animation_qeue, show_entry_complete_event, interface_animation_queue):
         super().__init__(name="AnimationControllerThread")
@@ -29,8 +52,8 @@ class AnimationController(threading.Thread):
 
         self.mode = "idle"
         self.pixels = 256
-        self.width = 16
-        self.height = 16
+        self.width = 14
+        self.height = 50
         self.brightness = 1
 
         #animantion tracking
@@ -64,7 +87,7 @@ class AnimationController(threading.Thread):
     
     def get_brightness(self):
         with self.settings_lock:
-            self.brightness = self.current_settings["LED brightness"]
+            self.brightness = self.current_settings["LED Brightness"]
 
     #set new mode in current settings
     def set_mode(self, new_mode):
@@ -147,16 +170,58 @@ class AnimationController(threading.Thread):
                         print("animation controller idle")
                         time.sleep(5.0)
                     case "test":
-                        print("animation controller test")
-                        self.frame_queue.put((bytes([0, 255, 0]) * self.pixels, self.brightness))
-                        time.sleep(2)
-                        self.frame_queue.put((bytes([255, 0, 0]) * self.pixels, self.brightness))
-                        time.sleep(2)
-                        self.frame_queue.put((bytes([0, 0, 255]) * self.pixels, self.brightness))
-                        time.sleep(2)
+                        print("animation controller test (matrix-based)")
+                        h, w = self.height, self.width
+                        # Helper to send a matrix using remap_matrix and gamma correction
+                        def send_matrix(matrix):
+                            remapped = self.remap_matrix(matrix)
+                            payload = bytearray()
+                            for r, g, b in remapped:
+                                r_corr = self.gamma_correct(r)
+                                g_corr = self.gamma_correct(g)
+                                b_corr = self.gamma_correct(b)
+                                payload.extend([r_corr, g_corr, b_corr])
+                            self.frame_queue.put(bytes(payload))
+
+                        # Solid red
+                        matrix = np.zeros((h, w, 3), dtype=np.uint8)
+                        matrix[..., 0] = 255
+                        send_matrix(matrix)
+                        time.sleep(1)
+                        # Solid green
+                        matrix = np.zeros((h, w, 3), dtype=np.uint8)
+                        matrix[..., 1] = 255
+                        send_matrix(matrix)
+                        time.sleep(1)
+                        # Solid blue
+                        matrix = np.zeros((h, w, 3), dtype=np.uint8)
+                        matrix[..., 2] = 255
+                        send_matrix(matrix)
+                        time.sleep(1)
+
+                        # Light up each physical LED in remap_matrix order, leave them on, use green
+                            # Use a numpy array for the frame, light up one more LED each time, remap for output
+                        matrix = np.zeros((h, w, 3), dtype=np.uint8)
+                        n_leds = h * w
+                        frame_interval = 1.0 / 30.0  # 30 FPS
+                        for y in range(h):
+                            for x in range(w):
+                                t_start = time.time()
+                                matrix[y, x] = [0, 255, 0]  # green
+                                remapped = self.remap_matrix(matrix)
+                                payload = bytearray()
+                                for r, g, b in remapped:
+                                    r_corr = self.gamma_correct(r)
+                                    g_corr = self.gamma_correct(g)
+                                    b_corr = self.gamma_correct(b)
+                                    payload.extend([r_corr, g_corr, b_corr])
+                                self.frame_queue.put(bytes(payload))
+                                t_elapsed = time.time() - t_start
+                                if t_elapsed < frame_interval:
+                                    time.sleep(frame_interval - t_elapsed)
                     case "draw":
                         if msg == "clear":
-                            self.frame_queue.put((bytes([0, 0, 0]) * self.pixels, self.brightness))
+                            self.frame_queue.put(bytes([0, 0, 0]) * self.pixels)
                             print("Canvas cleared")
                         elif msg and isinstance(msg, dict) and msg.get("type") == "matrix":
                             matrix = msg["matrix"]
@@ -164,8 +229,11 @@ class AnimationController(threading.Thread):
                             for x in range(self.width):
                                 for y in range(self.height):
                                     r, g, b = matrix[x][y]
-                                    payload.extend([g, r, b])
-                            self.frame_queue.put((bytes(payload), self.brightness))
+                                    r_corr = self.gamma_correct(r)
+                                    g_corr = self.gamma_correct(g)
+                                    b_corr = self.gamma_correct(b)
+                                    payload.extend([g_corr, r_corr, b_corr])
+                            self.frame_queue.put(bytes(payload))
                     case "static":
                         # Handle new image messages
                         if msg and isinstance(msg, dict):
@@ -174,18 +242,20 @@ class AnimationController(threading.Thread):
                                 h5_path = os.path.join(BASE_DIR, "uploaded", "images", self.image_name)
                                 print("new image")
                                 with h5py.File(h5_path, "r") as h5f:
-                                    matrix = np.array(h5f["frames"])
-                                    self.image_matrix = matrix
+                                    dset = h5f["frames"]
+                                    self.image_matrix = dset[...]
                                     self.seconds_requested = -1  # Show indefinitely
                                     self.seconds_shown = 0
                                 # Send image once
                                 frame = self.image_matrix[0] if self.image_matrix.ndim == 4 else self.image_matrix
                                 payload = bytearray()
-                                for x in range(self.width):
-                                    for y in range(self.height):
-                                        g, r, b = frame[y, x]
-                                        payload.extend([g, r, b])
-                                self.frame_queue.put((bytes(payload), self.brightness))
+                                remapped = self.remap_matrix(frame)
+                                for r, g, b in remapped:
+                                    r_corr = self.gamma_correct(r)
+                                    g_corr = self.gamma_correct(g)
+                                    b_corr = self.gamma_correct(b)
+                                    payload.extend([r_corr, g_corr, b_corr])
+                                self.frame_queue.put(bytes(payload))
 
                             elif msg.get("type") == "show_image":
                                 self.image_name = msg.get("name")
@@ -193,8 +263,8 @@ class AnimationController(threading.Thread):
                                 h5_path = os.path.join(BASE_DIR, "uploaded", "images", self.image_name)
                                 print("show image")
                                 with h5py.File(h5_path, "r") as h5f:
-                                    matrix = np.array(h5f["frames"])
-                                    self.image_matrix = matrix
+                                    dset = h5f["frames"]
+                                    self.image_matrix = dset[...]
                                     self.seconds_requested = seconds
                                     self.seconds_shown = 0
                                 # Send image once
@@ -203,8 +273,11 @@ class AnimationController(threading.Thread):
                                 for x in range(self.width):
                                     for y in range(self.height):
                                         g, r, b = frame[y, x]
-                                        payload.extend([g, r, b])
-                                self.frame_queue.put((bytes(payload), self.brightness))
+                                        r_corr = self.gamma_correct(r)
+                                        g_corr = self.gamma_correct(g)
+                                        b_corr = self.gamma_correct(b)
+                                        payload.extend([r_corr, g_corr, b_corr])
+                                self.frame_queue.put(bytes(payload))
 
                         # Time tracking and completion check
                         if self.image_name and hasattr(self, "image_matrix") and self.seconds_requested > 0:
@@ -222,11 +295,16 @@ class AnimationController(threading.Thread):
                                 with h5py.File(h5_path, "r") as h5f:
                                     if "frames" not in h5f:
                                         raise ValueError(f"No 'frames' dataset in {h5_path}")
-                                    frames = h5f["frames"]
-                                    print("frames type:", type(frames))
-                                    if not isinstance(frames, h5py.Dataset):
-                                        raise TypeError(f"'frames' is not a dataset in {h5_path}, got {type(frames)}")
-                                    self.animation_frames = np.array(frames)
+                                    dset = h5f["frames"]
+                                    print("frames type:", type(dset))
+                                    if not isinstance(dset, h5py.Dataset):
+                                        raise TypeError(f"'frames' is not a dataset in {h5_path}, got {type(dset)}")
+                                    self.animation_frames = dset[...]
+                                    if self.animation_frames.ndim == 3:
+                                        # Normalize single-frame to (F,H,W,C)
+                                        self.animation_frames = self.animation_frames[None, ...]
+                                    if self.animation_frames.shape[-1] != 3:
+                                        raise ValueError(f"Expected last channel size 3 (RGB/GRB), got {self.animation_frames.shape}")
                                     self.total_frames = self.animation_frames.shape[0]
                                     self.animation_name = filename
                                     self.animation_index = 0
@@ -241,11 +319,15 @@ class AnimationController(threading.Thread):
                                 with h5py.File(h5_path, "r") as h5f:
                                     if "frames" not in h5f:
                                         raise ValueError(f"No 'frames' dataset in {h5_path}")
-                                    frames = h5f["frames"]
-                                    print("frames type:", type(frames))
-                                    if not isinstance(frames, h5py.Dataset):
-                                        raise TypeError(f"'frames' is not a dataset in {h5_path}, got {type(frames)}")
-                                    self.animation_frames = np.array(frames)
+                                    dset = h5f["frames"]
+                                    print("frames type:", type(dset))
+                                    if not isinstance(dset, h5py.Dataset):
+                                        raise TypeError(f"'frames' is not a dataset in {h5_path}, got {type(dset)}")
+                                    self.animation_frames = dset[...]
+                                    if self.animation_frames.ndim == 3:
+                                        self.animation_frames = self.animation_frames[None, ...]
+                                    if self.animation_frames.shape[-1] != 3:
+                                        raise ValueError(f"Expected last channel size 3 (RGB/GRB), got {self.animation_frames.shape}")
                                     self.total_frames = self.animation_frames.shape[0]
                                     self.animation_name = filename
                                     self.animation_index = 0
@@ -262,11 +344,13 @@ class AnimationController(threading.Thread):
                             if keep_looping:
                                 matrix = self.animation_frames[self.animation_index]
                                 payload = bytearray()
-                                for x in range(self.width):
-                                    for y in range(self.height):
-                                        g, r, b = matrix[y, x]
-                                        payload.extend([g, r, b])
-                                self.frame_queue.put((bytes(payload), self.brightness))
+                                remapped = self.remap_matrix(matrix)
+                                for r, g, b in remapped:
+                                    r_corr = self.gamma_correct(r)
+                                    g_corr = self.gamma_correct(g)
+                                    b_corr = self.gamma_correct(b)
+                                    payload.extend([r_corr, g_corr, b_corr])
+                                self.frame_queue.put(bytes(payload))
                                 self.animation_index += 1
                                 if self.animation_index >= self.total_frames:
                                     self.animation_index = 0
@@ -312,11 +396,13 @@ class AnimationController(threading.Thread):
                             if keep_looping:
                                 for frame in frames:
                                     payload = bytearray()
-                                    for x in range(self.text_width):
-                                        for y in range(self.text_height):
-                                            g, r, b = frame[y, x]
-                                            payload.extend([g, r, b])
-                                    self.frame_queue.put((bytes(payload), self.brightness))
+                                    remapped = self.remap_matrix(frame)
+                                    for r, g, b in remapped:
+                                        r_corr = self.gamma_correct(r)
+                                        g_corr = self.gamma_correct(g)
+                                        b_corr = self.gamma_correct(b)
+                                        payload.extend([r_corr, g_corr, b_corr])
+                                    self.frame_queue.put(bytes(payload))
                                     time.sleep(0.05)
                                 self.text_loop_counter += 1
                                 # Only set the event if we've finished all requested loops
@@ -346,9 +432,9 @@ def load_h5_frame_to_matrix(h5_file, frame_idx=0):
     with h5py.File(h5_file, "r") as h5f:
         if "frames" not in h5f:
             raise ValueError(f"No 'frames' dataset in {h5_file}")
-        frames = h5f["frames"]
-        print("frames type:", type(frames))
-        if not isinstance(frames, h5py.Dataset):
-            raise TypeError(f"'frames' is not a dataset in {h5_file}, got {type(frames)}")
-        matrix = np.array(frames[frame_idx])  # shape: (height, width, 3)
+        dset = h5f["frames"]
+        print("frames type:", type(dset))
+        if not isinstance(dset, h5py.Dataset):
+            raise TypeError(f"'frames' is not a dataset in {h5_file}, got {type(dset)}")
+        matrix = dset[frame_idx, ...]  # shape: (height, width, 3)
     return matrix

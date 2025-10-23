@@ -365,6 +365,17 @@ async def settings_options():
         "current": dict(current_settings_cache)
     })
 
+@app.post("/api/run_test")
+async def run_full_test():
+    # Send a message to the animation controller to switch to test mode
+    if hasattr(app.state, "web_animation_queue") and app.state.web_animation_queue:
+        app.state.web_animation_queue.put({"type": "mode", "mode": "test"})
+        print("[API] Run full test triggered: sent 'test' mode to animation controller")
+        return {"message": "Full test started!"}
+    else:
+        print("[API] web_animation_queue not available!")
+        return {"message": "Error: animation controller queue not available."}
+
 if __name__ == "__main__":
     uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=True)
 
