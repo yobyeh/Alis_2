@@ -1,4 +1,4 @@
-#hardcoding 16x16 for testing , needs to get from passed settings or somthing
+
 #may not need to send color change msg any more 
 from fastapi import FastAPI, WebSocket, UploadFile, File, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -375,6 +375,20 @@ async def run_full_test():
     else:
         print("[API] web_animation_queue not available!")
         return {"message": "Error: animation controller queue not available."}
+
+@app.post("/api/delete_text_entry")
+async def delete_text_entry(data: dict = Body(...)):
+    import json
+    text_path = os.path.join(BASE_DIR, "data", "text_display.json")
+    text_path = Path("data/text_display.json")
+    if not text_path.exists():
+        return JSONResponse({"error": "No text file."}, status_code=404)
+    with open(text_path, "r") as f:
+        text_data = json.load(f)
+    text_data = [entry for entry in text_data if entry.get("name") != data.get("name")]
+    with open(text_path, "w") as f:
+        json.dump(text_data, f, indent=2)
+    return {"status": "deleted"}
 
 if __name__ == "__main__":
     uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=True)

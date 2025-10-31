@@ -27,8 +27,10 @@ class ScreenController:
         #space and enter
 
     def get_font(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        font_path = os.path.join(base_dir, "assets", "DejaVuSans-Bold.ttf")
         try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+            font = ImageFont.truetype(font_path, 20)
         except IOError:
             font = ImageFont.load_default()
         return font

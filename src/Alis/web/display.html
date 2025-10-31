@@ -1,4 +1,3 @@
-<!-- Example for /home/slug/repos/Alis_2/app_pi/web/upload.html -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -360,8 +359,7 @@
                 .forEach(txt => {
                     const item = document.createElement("div");
                     item.className = "image-item";
-                    item.style.cursor = "pointer";
-                    // Show name and all info
+                    // Info span
                     const info = document.createElement("span");
                     info.style.color = "#fff";
                     info.style.fontSize = "1.2em";
@@ -372,7 +370,9 @@
                         `Font: ${txt["font size"] || "42"} | ` +
                         `Scroll: ${txt["scroll speed"] || "2"}`;
                     item.appendChild(info);
-                    item.onclick = async () => {
+                    // Run on click (not on delete)
+                    item.onclick = async (e) => {
+                        if (e.target !== item) return; // Only if not clicking delete
                         item.style.background = "#2979ff";
                         item.style.color = "#fff";
                         await fetch("/api/run_text", {
@@ -383,6 +383,32 @@
                         item.style.background = "";
                         item.style.color = "";
                     };
+                    // Delete button
+                    const delBtn = document.createElement("button");
+                    delBtn.textContent = "Delete";
+                    delBtn.style.marginLeft = "1em";
+                    delBtn.style.background = "#ff1744";
+                    delBtn.style.color = "#fff";
+                    delBtn.style.border = "none";
+                    delBtn.style.borderRadius = "0.4em";
+                    delBtn.style.padding = "0.3em 1em";
+                    delBtn.style.fontWeight = "bold";
+                    delBtn.style.cursor = "pointer";
+                    delBtn.onclick = async (e) => {
+                        e.stopPropagation();
+                        if (!confirm(`Delete text entry '${txt.name}'?`)) return;
+                        const res = await fetch("/api/delete_text_entry", {
+                            method: "POST",
+                            headers: {"Content-Type": "application/json"},
+                            body: JSON.stringify({name: txt.name})
+                        });
+                        if (res.ok) {
+                            loadText();
+                        } else {
+                            alert("Failed to delete text entry.");
+                        }
+                    };
+                    item.appendChild(delBtn);
                     textImageList.appendChild(item);
                 });
         }

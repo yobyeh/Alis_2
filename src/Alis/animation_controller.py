@@ -115,23 +115,65 @@ class AnimationController(threading.Thread):
         return px, py
     
     def render_scrolling_text(self, text, width, height, color="#ffd600", font_size=32, scroll_speed=1):
-        # Render text to a long image
-        img = Image.new("RGB", (width*8 + len(text)*font_size, height*4), (0, 0, 0))
-        draw = ImageDraw.Draw(img)
-        font = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size)
-        w, h = draw.textsize(text, font=font)
-        draw.text((width*4, (img.height-h)//2), text, font=font, fill=color)
-        # Scroll window across the image
+        from pathlib import Path
+        import numpy as np
+        from PIL import Image, ImageDraw, ImageFont
+
+        def _load_font(font_px: int) -> ImageFont.FreeTypeFont:
+            here = Path(__file__).resolve().parent
+            candidates = [
+                here / "assets" / "DejaVuSans-Bold.ttf",
+                here.parent / "assets" / "DejaVuSans-Bold.ttf",
+                Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+            ]
+            for p in candidates:
+                if p.exists():
+                    try:
+                        return ImageFont.truetype(str(p), font_px)
+                    except OSError:
+                        pass
+            return ImageFont.load_default()
+
+        SCALE = 4  # supersample scale for better legibility
+        Ws, Hs = width * SCALE, height * SCALE
+
+        # Load font at scaled size
+        font = _load_font(font_size * SCALE)
+
+        # Measure text precisely (textbbox > textsize)
+        tmp = Image.new("RGB", (1, 1), (0, 0, 0))
+        dtmp = ImageDraw.Draw(tmp)
+        try:
+            l, t, r, b = dtmp.textbbox((0, 0), text, font=font)
+        except AttributeError:
+            # Older Pillow fallback
+            tw, th = dtmp.textsize(text, font=font)
+            l, t, r, b = 0, 0, tw, th
+        text_w, text_h = r - l, b - t
+
+        # Add margins so it scrolls in from off-screen and exits fully
+        margin = Ws  # one screen width margin on each side
+        img_w = margin + text_w + margin
+        canvas = Image.new("RGB", (img_w, Hs), (0, 0, 0))
+        draw = ImageDraw.Draw(canvas)
+
+        # Center vertically
+        y = (Hs - text_h) // 2
+        draw.text((margin - l, y - t), text, font=font, fill=color)
+
         frames = []
-        for offset in range(0, img.width-width+1, scroll_speed):
-            frame = img.crop((offset, 0, offset+width, height*4))
+        # Move by scaled pixels so scroll_speed=1 is one LED pixel step
+        step = max(1, int(scroll_speed) * SCALE)
+        for offset in range(0, img_w - Ws + 1, step):
+            frame = canvas.crop((offset, 0, offset + Ws, Hs))
+            # Downsample to panel size
             frame_small = frame.resize((width, height), Image.LANCZOS)
-            arr = np.array(frame_small)
-            grb_arr = np.zeros_like(arr)
-            grb_arr[..., 0] = arr[..., 1]  # G
-            grb_arr[..., 1] = arr[..., 0]  # R
-            grb_arr[..., 2] = arr[..., 2]  # B
+            arr = np.asarray(frame_small, dtype=np.uint8)
+
+            # RGB -> GRB for your strip order
+            grb_arr = arr[..., [1, 0, 2]]
             frames.append(grb_arr)
+
         return frames
 
     def run(self):
