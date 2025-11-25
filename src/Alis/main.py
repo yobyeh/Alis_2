@@ -1,3 +1,4 @@
+
 # main.py
 # owns interface, 
 
@@ -131,6 +132,17 @@ def ensure_uploaded_folders():
             sub_path.mkdir(parents=True)
             print(f"Created subfolder: {sub_path}")
 
+def cleanup_gpio():
+    try:
+        from gpiozero import Device
+        if Device.pin_factory:
+            Device.pin_factory.close()   # <-- instance method
+            print("GPIO cleaned up.", flush=True)
+        else:
+            print("No GPIO pin factory active.", flush=True)
+    except Exception as e:
+        print(f"GPIO cleanup failed: {e}", flush=True)
+
 def main():
     logging.basicConfig(
         level=logging.DEBUG,
@@ -206,6 +218,7 @@ def main():
     web_server_monitor.start()
     print("Web server monitor started.", flush=True)
 
+
     try:
         # Keep main alive until signaled (or one of the threads ends)
         while (
@@ -219,49 +232,46 @@ def main():
     except KeyboardInterrupt:
         print("Ctrl-C received, shutting down...", flush=True)
         shutdown_event.set()
-    finally:
-        # 1) Stop animation (producer) first
-        try:
-            animation_controller.join(timeout=5)
-        except Exception:
-            pass
 
-        # 2) Unblock LED consumer with a sentinel and stop it
-        try:
-            frame_queue.put_nowait(None)  # sentinel the LED thread recognizes
-        except Exception:
-            pass
-        try:
-            led_controller.join(timeout=5)
-        except Exception:
-            pass
+    # --- Shutdown sequence ---
+    print("Waiting for threads to exit...", flush=True)
+    # 1) Stop animation (producer) first
+    animation_controller.join(timeout=5)
+    if animation_controller.is_alive():
+        print("Warning: animation_controller did not exit in time.", flush=True)
 
-        # 3) Stop interface
-        try:
-            interface_thread.join(timeout=5)
-        except Exception:
-            pass
+    # 2) Unblock LED consumer with a sentinel and stop it
+    try:
+        frame_queue.put_nowait(None)  # sentinel the LED thread recognizes
+    except Exception:
+        pass
+    led_controller.join(timeout=5)
+    if led_controller.is_alive():
+        print("Warning: led_controller did not exit in time.", flush=True)
 
-        # 4) Stop show controller
-        try:
-            show_controller.join(timeout=5)
-        except Exception:
-            pass
+    # 3) Stop interface
+    interface_thread.join(timeout=5)
+    if interface_thread.is_alive():
+        print("Warning: interface_thread did not exit in time.", flush=True)
 
-        # Stop web server process
-        # if web_server_proc.is_alive():
-        #     web_server_proc.terminate()
-        #     web_server_proc.join(timeout=5)
-        #     print("Web server stopped.", flush=True)
+    # 4) Stop show controller
+    show_controller.join(timeout=5)
+    if show_controller.is_alive():
+        print("Warning: show_controller did not exit in time.", flush=True)
 
-        # Stop web server monitor
-        if web_server_monitor.is_alive():
-            web_server_monitor.terminate()
-            web_server_monitor.join(timeout=5)
-            print("Web server monitor stopped.", flush=True)
+    # Stop web server monitor
+    if web_server_monitor.is_alive():
+        web_server_monitor.terminate()
+        web_server_monitor.join(timeout=5)
+        print("Web server monitor stopped.", flush=True)
 
-        save_settings()
-        print("main exiting.", flush=True)
+    # Save settings after all threads have stopped
+    save_settings()
+
+    # Clean up GPIO
+    cleanup_gpio()
+
+    print("main exiting.", flush=True)
 
 if __name__ == "__main__":
     main()

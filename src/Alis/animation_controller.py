@@ -180,8 +180,8 @@ class AnimationController(threading.Thread):
         try:
             while not self.shutdown_event.is_set():
                 msg = None
-                with self.settings_lock:
-                    print(self.current_settings)
+                #with self.settings_lock:
+                    #print(self.current_settings)
                 try:
                     msg = self.show_animation_qeue.get(timeout=0.05)
                 except queue.Empty:
