@@ -31,7 +31,7 @@ from multiprocessing import Queue
 logging.getLogger("PIL").setLevel(logging.WARNING)
 
 # Button pins (BCM numbering)
-BTN_PINS = {"UP": 17, "DOWN": 23, "LEFT":27, "RIGHT":22, "SELECT": 25, "BACK": 24}
+BTN_PINS = {"UP": 25, "DOWN": 22, "LEFT":24, "RIGHT":23, "SELECT": 17, "BACK": 27}
 DEBOUNCE_S = 0.05
 #lcd settings
 RENDER_INTERVAL = 0.1  # seconds
