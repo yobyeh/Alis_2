@@ -60,7 +60,7 @@ class AnimationController(threading.Thread):
 
     def get_brightness(self):
         with self.settings_lock:
-            self.brightness = self.current_settings["LED brightness"]
+            self.brightness = self.current_settings["LED Brightness"]
 
     #set new mode in current settings
     def set_mode(self):
