@@ -1,4 +1,4 @@
-
+#hardcoding 14x50 for testing , needs to get from passed settings or something
 #may not need to send color change msg any more 
 from fastapi import FastAPI, WebSocket, UploadFile, File, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -17,40 +17,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Ensure preview directory exists before mounting
 Path("uploaded/images/preview").mkdir(parents=True, exist_ok=True)
 
-import threading
-
 app = FastAPI()
-
-# Global cache for current settings
-current_settings_cache = {}
-
-# Background thread to monitor interface_web_queue
-def interface_settings_monitor():
-    import time
-    while True:
-        try:
-            if hasattr(app.state, "interface_web_queue") and app.state.interface_web_queue:
-                try:
-                    msg = app.state.interface_web_queue.get_nowait()
-                    if isinstance(msg, dict) and msg.get("type") == "settings_update":
-                        settings = msg.get("settings")
-                        if isinstance(settings, dict):
-                            print(f"[web_server] Received settings_update: {settings}", flush=True)
-                            current_settings_cache.clear()
-                            current_settings_cache.update(settings)
-                            print(f"[web_server] Updated current_settings_cache: {current_settings_cache}", flush=True)
-                except Exception:
-                    pass
-        except Exception as e:
-            print(f"[web_server] Error in interface_settings_monitor: {e}", flush=True)
-        time.sleep(0.2)
-
-# Start the background thread on startup
-@app.on_event("startup")
-def start_settings_monitor():
-    print("starting monitor thread")
-    t = threading.Thread(target=interface_settings_monitor, daemon=True)
-    t.start()
 preview_dir = os.path.join(BASE_DIR, "uploaded", "images", "preview")
 app.mount("/web/images/preview", StaticFiles(directory=preview_dir), name="preview")
 app.mount("/web/animations/preview", StaticFiles(directory="uploaded/animations/preview"), name="preview")
@@ -75,9 +42,7 @@ async def image_list():
         preview_url = f"/web/images/preview/{preview_file.name}" if preview_file.exists() else ""
         # Read matrix_size from HDF5 metadata
         with h5py.File(h5_file, "r") as h5f:
-            height, width = h5f.attrs["matrix_size"]
-            height = int(height)
-            width = int(width)
+            height, width = 50, 14  # force 14x50
         items.append({
             "name": name,
             "preview_url": preview_url,
@@ -96,9 +61,7 @@ async def animation_list():
         preview_file = preview_folder / (h5_file.stem + ".png")
         preview_url = f"/web/animations/preview/{preview_file.name}" if preview_file.exists() else ""
         with h5py.File(h5_file, "r") as h5f:
-            height, width = h5f.attrs["matrix_size"]
-            height = int(height)
-            width = int(width)
+            height, width = 50, 14  # force 14x50
         items.append({
             "name": name,
             "preview_url": preview_url,
@@ -158,6 +121,9 @@ async def run_image(data: dict = Body(...)):
     msg = {"type": "mode", "mode": "static"}
     web_animation_queue.put(msg)
     print("Sent static mode message to animation controller")
+    # Stop the show controller
+    if hasattr(app.state, "web_show_queue") and app.state.web_show_queue:
+        app.state.web_show_queue.put({"type": "stop"})
 
     #send image
     name = data.get("name")
@@ -173,6 +139,9 @@ async def run_animation(data: dict = Body(...)):
     msg = {"type": "mode", "mode": "animation"}
     web_animation_queue.put(msg)
     print("Sent animation mode message to animation controller")
+    # Stop the show controller
+    if hasattr(app.state, "web_show_queue") and app.state.web_show_queue:
+        app.state.web_show_queue.put({"type": "stop"})
 
     # Send animation file name
     name = data.get("name")
@@ -187,6 +156,9 @@ async def run_text(data: dict = Body(...)):
     msg = {"type": "mode", "mode": "text"}
     web_animation_queue.put(msg)
     print("Sent text mode message to animation controller")
+    # Stop the show controller
+    if hasattr(app.state, "web_show_queue") and app.state.web_show_queue:
+        app.state.web_show_queue.put({"type": "stop"})
 
     # Send text entry name
     name = data.get("name")
@@ -319,20 +291,7 @@ async def run_show(data: dict = Body(...)):
 
 @app.post("/api/update_setting")
 async def update_setting(request: Request):
-    # Parse the incoming JSON
-    data = await request.json()
-    setting = data.get("setting")
-    value = data.get("value")
-
-    # Send message to web_interface_queue queue if available
-    msg = {"type": "settings_change", "setting": setting, "value": value}
-    if hasattr(app.state, "web_interface_queue") and app.state.web_interface_queue:
-        try:
-            app.state.web_interface_queue.put(msg)
-        except Exception as e:
-            print(f"Failed to put message on web_interface_queue: {e}", flush=True)
-    else:
-        print("web_interface_queue queue not available in app.state", flush=True)
+    
     return {"status": "ok"}
 
 @app.get("/api/settings_options")
@@ -341,9 +300,8 @@ async def settings_options():
     menu_path = os.path.join(BASE_DIR, "data", "menu_data.json")
     with open(menu_path, "r") as f:
         menu_data = json.load(f)
-    # Get all settings under "home" > "Settings" and "home" > "LED Config"
+    # Get all settings under "home" > "Settings"
     settings_section = menu_data.get("home", {}).get("Settings", {})
-    led_config_section = menu_data.get("home", {}).get("LED Config", {})
     settings_list = []
     for name, info in settings_section.items():
         settings_list.append({
@@ -352,43 +310,7 @@ async def settings_options():
             "default": info.get("default", None),
             "action": info.get("action", ""),
         })
-    for name, info in led_config_section.items():
-        settings_list.append({
-            "name": name,
-            "options": info.get("options", []),
-            "default": info.get("default", None),
-            "action": info.get("action", ""),
-        })
-    # Return both the menu layout and the latest current settings
-    return JSONResponse({
-        "settings": settings_list,
-        "current": dict(current_settings_cache)
-    })
-
-@app.post("/api/run_test")
-async def run_full_test():
-    # Send a message to the animation controller to switch to test mode
-    if hasattr(app.state, "web_animation_queue") and app.state.web_animation_queue:
-        app.state.web_animation_queue.put({"type": "mode", "mode": "test"})
-        print("[API] Run full test triggered: sent 'test' mode to animation controller")
-        return {"message": "Full test started!"}
-    else:
-        print("[API] web_animation_queue not available!")
-        return {"message": "Error: animation controller queue not available."}
-
-@app.post("/api/delete_text_entry")
-async def delete_text_entry(data: dict = Body(...)):
-    import json
-    text_path = os.path.join(BASE_DIR, "data", "text_display.json")
-    text_path = Path("data/text_display.json")
-    if not text_path.exists():
-        return JSONResponse({"error": "No text file."}, status_code=404)
-    with open(text_path, "r") as f:
-        text_data = json.load(f)
-    text_data = [entry for entry in text_data if entry.get("name") != data.get("name")]
-    with open(text_path, "w") as f:
-        json.dump(text_data, f, indent=2)
-    return {"status": "deleted"}
+    return JSONResponse(settings_list)
 
 if __name__ == "__main__":
     uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=True)

@@ -105,8 +105,8 @@ class LEDController(threading.Thread):
         #     default_brightness = int(led_cfg.get("brightness", 128))
         #     self.default_brightness = _clamp_byte(default_brightness)
         #     # Optionally validate matrix size (if you track width/height in settings)
-        #     # self.width = int(led_cfg.get("width", 16))
-        #     # self.height = int(led_cfg.get("height", 16))
+    #     # self.width = int(led_cfg.get("width", 14))
+    #     # self.height = int(led_cfg.get("height", 50))
         # --------------------------------------------------------------------
 
         if not hasattr(self, "default_brightness"):
@@ -212,7 +212,7 @@ class LEDController(threading.Thread):
                         except Exception as e2:
                             logging.error("Serial write failed after reconnect: %s", e2)
         finally:
-            blank_payload = bytes([0, 0, 0]) * (256)  # adjust pixel count as needed
+            blank_payload = bytes([0, 0, 0]) * (14*50)  # adjust pixel count as needed
             _send_frame(self.ser, blank_payload, 0)   # brightness 0 or your preferred value
             self._close_serial()
             logging.info("[LED] controller stopped")

@@ -221,7 +221,7 @@
         }
 
         function sendMatrix() {
-            const matrix = getMatrix(16, 16); // or your grid size
+            const matrix = getMatrix(14, 50); // or your grid size
             if (ws && ws.readyState === 1) {
                 ws.send(JSON.stringify({type: "matrix", matrix: matrix}));
             }

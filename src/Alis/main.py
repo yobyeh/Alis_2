@@ -1,6 +1,5 @@
-
 # main.py
-# owns interface, 
+# owns interface,
 
 import json
 import threading
@@ -25,28 +24,28 @@ SETTINGS_PATH = BASE_DIR / "data" / "settings.json"
 base = BASE_DIR / "uploaded"
 
 settings_lock = threading.Lock()
-#possibly not used yet, passed to interface ????
+# possibly not used yet, passed to interface ????
 settings_changed = threading.Event()
 shutdown_event = threading.Event()
-#amimation to led controller
+# animation to led controller
 frame_queue = queue.Queue()
-#web to animation controller
+# web to animation controller
 web_animation_queue = multiprocessing.Queue()
-#show controller to animation
+# show controller to animation
 show_animation_queue = queue.Queue()
-#web to show controller
+# web to show controller
 web_show_queue = multiprocessing.Queue()
-#main to web initialy sending current settings
+# main to web initially sending current settings
 main_web_queue = multiprocessing.Queue()
-#animation controller completing events from show
+# animation controller completing events from show
 show_entry_complete_event = threading.Event()
 # interface to web_server for current settings
 interface_web_queue = multiprocessing.Queue()
-#web to interface for settings chage
+# web to interface for settings change
 web_interface_queue = multiprocessing.Queue()
-#interface to animation controller
+# interface to animation controller
 interface_animation_queue = queue.Queue()
-#interface to show controller
+# interface to show controller
 interface_show_queue = queue.Queue()
 
 manager = Manager()
@@ -54,16 +53,17 @@ interface_web_queue = manager.Queue()
 current_settings = manager.dict({"Animation Mode": "idle"})
 settings_lock = Lock()
 
+
 def load_settings() -> dict:
     menu_data = []
-    #find menu data
+    # find menu data
     if not SETTINGS_PATH.exists():
         if MENU_PATH.exists():
             with open(MENU_PATH, "r") as f:
                 menu_data = json.load(f)
         else:
-            raise FileNotFoundError(f"Menu file not found: {MENU_PATH}")        
-        #build new settings file with defaults
+            raise FileNotFoundError(f"Menu file not found: {MENU_PATH}")
+        # build new settings file with defaults
         new_settings = {}
         for setting, setting_data in menu_data["home"]["Settings"].items():
             default_value = setting_data.get("default")
@@ -79,6 +79,7 @@ def load_settings() -> dict:
     else:
         return json.loads(SETTINGS_PATH.read_text())
 
+
 def save_settings():
     try:
         with settings_lock:
@@ -87,10 +88,17 @@ def save_settings():
     except Exception:
         logging.exception("Failed to save settings")
 
-def run_web_server(web_animation_queue, current_settings, settings_lock):
+
+def run_web_server(
+    web_animation_queue,
+    current_settings,
+    settings_lock,
+    interface_web_queue,
+    web_interface_queue,
+):
     import uvicorn
     import web_server
-    #web servers get comunication queues here
+    # web servers get communication queues here
     web_server.app.state.web_animation_queue = web_animation_queue
     web_server.app.state.web_show_queue = web_show_queue
     web_server.app.state.current_settings = current_settings
@@ -99,9 +107,25 @@ def run_web_server(web_animation_queue, current_settings, settings_lock):
     web_server.app.state.web_interface_queue = web_interface_queue
     uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=False)
 
-def start_web_server_monitor(web_animation_queue, current_settings, settings_lock):
+
+def start_web_server_monitor(
+    web_animation_queue,
+    current_settings,
+    settings_lock,
+    interface_web_queue,
+    web_interface_queue,
+):
     while not shutdown_event.is_set():
-        proc = multiprocessing.Process(target=run_web_server, args=(web_animation_queue, interface_web_queue, web_interface_queue))
+        proc = multiprocessing.Process(
+            target=run_web_server,
+            args=(
+                web_animation_queue,
+                current_settings,
+                settings_lock,
+                interface_web_queue,
+                web_interface_queue,
+            ),
+        )
         proc.start()
         print("Web server started.")
         while proc.is_alive() and not shutdown_event.is_set():
@@ -114,6 +138,7 @@ def start_web_server_monitor(web_animation_queue, current_settings, settings_loc
         print("Web server crashed or exited, restarting in 2s...")
         time.sleep(2)
 
+
 def ensure_uploaded_folders():
     base = Path("uploaded")
     subfolders = [
@@ -121,7 +146,7 @@ def ensure_uploaded_folders():
         "images",
         "images/preview",
         "animations/preview",
-        "raw"
+        "raw",
     ]
     if not base.exists():
         base.mkdir()
@@ -132,23 +157,24 @@ def ensure_uploaded_folders():
             sub_path.mkdir(parents=True)
             print(f"Created subfolder: {sub_path}")
 
+
 def cleanup_gpio():
     try:
         from gpiozero import Device
         if Device.pin_factory:
-            Device.pin_factory.close()   # <-- instance method
+            Device.pin_factory.close()
             print("GPIO cleaned up.", flush=True)
         else:
             print("No GPIO pin factory active.", flush=True)
     except Exception as e:
         print(f"GPIO cleanup failed: {e}", flush=True)
 
+
 def main():
     logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s %(levelname)s [%(threadName)s] %(message)s"
-    )
-    global interface_que
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s [%(threadName)s] %(message)s",
+)
     global current_settings
     current_settings = load_settings()
     print("Alis starting...", flush=True)
@@ -158,14 +184,16 @@ def main():
     # -------------------- Start interface thread --------------------
     interface_thread = threading.Thread(
         target=start_interface,
-        args=(current_settings,
-               shutdown_event,
-                 settings_lock,
-                   settings_changed,
-                   interface_web_queue
-                   ,web_interface_queue,
-                   interface_animation_queue,
-                   interface_show_queue),
+        args=(
+            current_settings,
+            shutdown_event,
+            settings_lock,
+            settings_changed,
+            interface_web_queue,
+            web_interface_queue,
+            interface_animation_queue,
+            interface_show_queue,
+        ),
         name="InterfaceThread",
         daemon=False,
     )
@@ -175,9 +203,9 @@ def main():
     # -------------------- Start LED controller thread --------------------
     led_controller = LEDController(
         stop_evt=shutdown_event,
-        frame_queue = frame_queue,
+        frame_queue=frame_queue,
         current_settings=current_settings,
-        settings_lock=settings_lock
+        settings_lock=settings_lock,
     )
     led_controller.start()
     print("LED controller thread started.", flush=True)
@@ -191,7 +219,7 @@ def main():
         web_animation_queue=web_animation_queue,
         show_animation_qeue=show_animation_queue,
         show_entry_complete_event=show_entry_complete_event,
-        interface_animation_queue=interface_animation_queue
+        interface_animation_queue=interface_animation_queue,
     )
     animation_controller.start()
     print("Animation controller thread started.", flush=True)
@@ -201,23 +229,24 @@ def main():
         web_show_queue,
         show_animation_queue,
         show_entry_complete_event,
-        interface_show_queue
+        interface_show_queue,
     )
     show_controller.start()
     print("Show controller thread started.", flush=True)
 
-    # -------------------- Start web server process --------------------
-    # web_server_proc = multiprocessing.Process(target=run_web_server)
-    # web_server_proc.start()
-    # print("Web server started.", flush=True)
-
     # -------------------- Start web server monitor --------------------
     web_server_monitor = multiprocessing.Process(
-        target=start_web_server_monitor, args=(web_animation_queue, interface_web_queue, web_interface_queue)
+        target=start_web_server_monitor,
+        args=(
+            web_animation_queue,
+            current_settings,
+            settings_lock,
+            interface_web_queue,
+            web_interface_queue,
+        ),
     )
     web_server_monitor.start()
     print("Web server monitor started.", flush=True)
-
 
     try:
         # Keep main alive until signaled (or one of the threads ends)
@@ -272,6 +301,7 @@ def main():
     cleanup_gpio()
 
     print("main exiting.", flush=True)
+
 
 if __name__ == "__main__":
     main()

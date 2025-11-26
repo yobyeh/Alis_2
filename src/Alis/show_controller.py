@@ -54,6 +54,10 @@ class ShowController(threading.Thread):
                             print(f"Starting show: {show_name}")
                     elif msg.get("type") == "stop":
                         self.current_show = None
+                        print("ShowController: Received stop command, going idle.")
+                    elif msg.get("type") == "idle":
+                        self.current_show = None
+                        print("ShowController: Received idle command, going idle.")
                     elif msg.get("type") == "shutdown":
                         self.shutdown_event.set()
 
@@ -105,10 +109,9 @@ class ShowController(threading.Thread):
                         print(f"Entry {self.show_index+1} timed out.")
                         self.show_index += 1
 
-                # After finishing all entries, reset current_show
+                # After finishing all entries, loop the show unless a new show is chosen or stop/shutdown is received
                 if self.current_show and self.show_index >= len(self.current_show.get("entries", [])):
-                    print(f"Show '{self.current_show.get('name')}' finished.")
-                    self.current_show = None
+                    print(f"Show '{self.current_show.get('name')}' finished. Looping show...")
                     self.show_index = 0
             except Exception as e:
                 print(f"Error in ShowController: {e}")
