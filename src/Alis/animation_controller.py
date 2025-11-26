@@ -135,13 +135,17 @@ class AnimationController(threading.Thread):
                         time.sleep(5.0)
                     case "test":
                         print("animation controller test")
+                        self.get_brightness()
                         self.frame_queue.put((bytes([0, 255, 0]) * self.pixels, self.brightness))
                         time.sleep(2)
+                        self.get_brightness()
                         self.frame_queue.put((bytes([255, 0, 0]) * self.pixels, self.brightness))
                         time.sleep(2)
+                        self.get_brightness()
                         self.frame_queue.put((bytes([0, 0, 255]) * self.pixels, self.brightness))
                         time.sleep(2)
                     case "draw":
+                        self.get_brightness()
                         if msg == "clear":
                             self.frame_queue.put((bytes([0, 0, 0]) * self.pixels, self.brightness))
                             print("Canvas cleared")
@@ -153,8 +157,10 @@ class AnimationController(threading.Thread):
                                     r, g, b = matrix[x][y]
                                     payload.extend([g, r, b])
                             self.frame_queue.put((bytes(payload), self.brightness))
+
                     case "static":
                         print("animation controller: static")
+                        self.get_brightness()
                         # Handle new image messages
                         if msg and isinstance(msg, dict):
                             if msg.get("type") == "image":
@@ -249,6 +255,7 @@ class AnimationController(threading.Thread):
                                 self.loop_counter < self.loops_reqested
                             )
                             if keep_looping:
+                                self.get_brightness()
                                 matrix = self.animation_frames[self.animation_index]
                                 payload = bytearray()
                                 for x in range(self.width):
@@ -300,6 +307,7 @@ class AnimationController(threading.Thread):
                             keep_looping = (self.text_loops == -1 or self.text_loop_counter < self.text_loops)
                             if keep_looping:
                                 for frame in frames:
+                                    self.get_brightness()
                                     payload = bytearray()
                                     for x in range(self.width):
                                         for y in range(self.height):
