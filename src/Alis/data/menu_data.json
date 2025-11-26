@@ -18,7 +18,7 @@
             "LED Brightness":{
                 "link":"",
                 "action":"update_int",
-                "default":5,
+                "default":90,
                 "options":[
                     5,
                     20,
