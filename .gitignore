@@ -1,3 +1,6 @@
+# Ignore user data files
+src/Alis/data/shows.json
+src/Alis/data/settings.json
 # Python ignores
 __pycache__/
 *.py[cod]
