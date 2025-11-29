@@ -114,6 +114,7 @@ def run_web_server(
 
 def start_web_server_monitor(
     web_animation_queue,
+    web_show_queue,
     current_settings,
     settings_lock,
     interface_web_queue,
@@ -126,6 +127,7 @@ def start_web_server_monitor(
             target=_run_web_server_graceful,
             args=(
                 web_animation_queue,
+                web_show_queue,
                 current_settings,
                 settings_lock,
                 interface_web_queue,
@@ -150,10 +152,11 @@ def start_web_server_monitor(
         print("Web server crashed or exited, restarting in 5s...")
         time.sleep(5)
 
-def _run_web_server_graceful(web_animation_queue, current_settings, settings_lock, interface_web_queue, web_interface_queue, shutdown_event):
+def _run_web_server_graceful(web_animation_queue, web_show_queue, current_settings, settings_lock, interface_web_queue, web_interface_queue, shutdown_event):
     import web_server_graceful
     web_server_graceful.run_web_server_with_shutdown(
         web_animation_queue,
+        web_show_queue,
         current_settings,
         settings_lock,
         interface_web_queue,
@@ -278,6 +281,7 @@ def main():
         target=start_web_server_monitor,
         args=(
             web_animation_queue,
+            web_show_queue,
             current_settings,
             settings_lock,
             interface_web_queue,
