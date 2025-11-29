@@ -9,10 +9,10 @@ from multiprocessing import Queue
 class ShowController(threading.Thread):
     def __init__(self, web_show_queue,
                   show_animation_queue,
-                    show_entry_complete_event,
-                    interface_show_queue,
-                    shows_json_path=None
-                    ):
+                  show_entry_complete_event,
+                  interface_show_queue,
+                  shutdown_event,
+                  shows_json_path=None):
         super().__init__()
         base_dir = os.path.dirname(os.path.abspath(__file__))
         if shows_json_path is None:
@@ -22,7 +22,7 @@ class ShowController(threading.Thread):
         self.animation_queue = show_animation_queue  # Sends entries to AnimationController
         self.current_show = None
         self.show_index = 0
-        self.shutdown_event = threading.Event()
+        self.shutdown_event = shutdown_event
         self.show_entry_complete_event = show_entry_complete_event
         self.interface_show_queue = interface_show_queue
 

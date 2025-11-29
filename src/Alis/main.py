@@ -230,6 +230,7 @@ def main():
         show_animation_queue,
         show_entry_complete_event,
         interface_show_queue,
+        shutdown_event=shutdown_event
     )
     show_controller.start()
     print("Show controller thread started.", flush=True)
