@@ -271,7 +271,10 @@ async def run_show(data: dict = Body(...)):
     # Send play_show message to ShowController
     show_name = data.get("name")
     print(f"Run show requested: {show_name}")
-    web_show_queue = app.state.web_show_queue  # You need to set this up in your app
+    web_show_queue = getattr(app.state, "web_show_queue", None)
+    if not web_show_queue:
+        print("Show controller queue is not configured; cannot run show.", flush=True)
+        return JSONResponse({"error": "Show controller unavailable."}, status_code=503)
     web_show_queue.put({"type": "play_show", "name": show_name})
     return {"status": "ok", "name": show_name}
 
@@ -314,4 +317,3 @@ async def settings_options():
 
 if __name__ == "__main__":
     uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=True)
-
