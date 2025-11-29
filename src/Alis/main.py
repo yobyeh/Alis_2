@@ -43,10 +43,13 @@ show_entry_complete_event = threading.Event()
 interface_web_queue = multiprocessing.Queue()
 # web to interface for settings change
 web_interface_queue = multiprocessing.Queue()
+
 # interface to animation controller
 interface_animation_queue = queue.Queue()
 # interface to show controller
 interface_show_queue = queue.Queue()
+# menu to main shutdown queue
+menu_main_queue = queue.Queue()
 
 manager = Manager()
 interface_web_queue = manager.Queue()
@@ -108,6 +111,7 @@ def run_web_server(
     uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=False)
 
 
+
 def start_web_server_monitor(
     web_animation_queue,
     current_settings,
@@ -115,15 +119,18 @@ def start_web_server_monitor(
     interface_web_queue,
     web_interface_queue,
 ):
+    from multiprocessing import Event
+    web_server_shutdown_event = Event()
     while not shutdown_event.is_set():
         proc = multiprocessing.Process(
-            target=run_web_server,
+            target=_run_web_server_graceful,
             args=(
                 web_animation_queue,
                 current_settings,
                 settings_lock,
                 interface_web_queue,
                 web_interface_queue,
+                web_server_shutdown_event,
             ),
         )
         proc.start()
@@ -131,12 +138,28 @@ def start_web_server_monitor(
         while proc.is_alive() and not shutdown_event.is_set():
             time.sleep(0.5)
         if shutdown_event.is_set():
-            proc.terminate()
-            proc.join()
+            print("Signaling web server for graceful shutdown...")
+            web_server_shutdown_event.set()
+            proc.join(timeout=10)
+            if proc.is_alive():
+                print("Web server did not exit in time, terminating.")
+                proc.terminate()
+                proc.join()
             print("Web server monitor exiting due to shutdown.")
             break
-        print("Web server crashed or exited, restarting in 2s...")
-        time.sleep(2)
+        print("Web server crashed or exited, restarting in 5s...")
+        time.sleep(5)
+
+def _run_web_server_graceful(web_animation_queue, current_settings, settings_lock, interface_web_queue, web_interface_queue, shutdown_event):
+    import web_server_graceful
+    web_server_graceful.run_web_server_with_shutdown(
+        web_animation_queue,
+        current_settings,
+        settings_lock,
+        interface_web_queue,
+        web_interface_queue,
+        shutdown_event,
+    )
 
 
 def ensure_uploaded_folders():
@@ -169,8 +192,22 @@ def cleanup_gpio():
     except Exception as e:
         print(f"GPIO cleanup failed: {e}", flush=True)
 
+# Thread to monitor menu_main_queue for shutdown
+def menu_shutdown_monitor():
+    while not shutdown_event.is_set():
+        try:
+            msg = menu_main_queue.get(timeout=0.5)
+            if isinstance(msg, dict) and msg.get("type") == "shutdown":
+                print("Shutdown requested from menu.", flush=True)
+                shutdown_event.set()
+                # Schedule system shutdown for 30 seconds from now
+                os.system("sudo shutdown -h +1")
+                break
+        except Exception:
+            pass
 
 def main():
+    cleanup_gpio()  # Ensure GPIO is released from any previous run
     logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)s [%(threadName)s] %(message)s",
@@ -193,6 +230,7 @@ def main():
             web_interface_queue,
             interface_animation_queue,
             interface_show_queue,
+            menu_main_queue,
         ),
         name="InterfaceThread",
         daemon=False,
@@ -248,6 +286,10 @@ def main():
     )
     web_server_monitor.start()
     print("Web server monitor started.", flush=True)
+
+    shutdown_monitor_thread = threading.Thread(target=menu_shutdown_monitor, daemon=True)
+    shutdown_monitor_thread.start()
+
 
     try:
         # Keep main alive until signaled (or one of the threads ends)

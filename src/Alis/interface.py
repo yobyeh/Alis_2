@@ -74,7 +74,8 @@ def start_interface(current_settings: dict,
                     interface_web_queue,
                     web_interface_queue,
                     interface_animation_queue,
-                    interface_show_queue):
+                    interface_show_queue,
+                    menu_main_queue):
     print("starting interface", flush=True)
 
     # Initialize last_sent_settings as a copy of current_settings
@@ -97,7 +98,7 @@ def start_interface(current_settings: dict,
 
         #setup menu
         screen = ScreenController(lcd.width, lcd.height, current_settings, settings_lock)
-        menu = MenuController(screen, current_settings, settings_lock, settings_changed,interface_animation_queue,interface_show_queue)
+        menu = MenuController(screen, current_settings, settings_lock, settings_changed, interface_animation_queue, interface_show_queue, menu_main_queue)
         menu.start_menu()
 
         screen.connected = status_manager.is_connected()

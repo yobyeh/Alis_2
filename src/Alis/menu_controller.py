@@ -17,7 +17,8 @@ class MenuController:
                 current_settings, settings_lock,
                 settings_changed, 
                 interface_animation_queue,
-                interface_show_queue):
+                interface_show_queue,
+                menu_main_queue=None):
         base_dir = Path(__file__).parent
         self.menu_path = base_dir / "data" / "menu_data.json"
         self.shows_path = base_dir / "data" / "shows.json"
@@ -35,6 +36,7 @@ class MenuController:
         self.show_screen = False
         self.interface_animation_queue = interface_animation_queue
         self.interface_show_queue = interface_show_queue
+        self.menu_main_queue = menu_main_queue
 
     # 1 is the location of the pointer in the menu structure
     def start_point_tracker(self):
@@ -168,6 +170,12 @@ class MenuController:
                 self.current_settings[setting_name] = available_values[next_idx]
                 #set flag
                 self.settings_changed.set()
+            elif action == "shutdown":
+                # Send shutdown message to main via menu_main_queue
+                if self.menu_main_queue is not None:
+                    self.menu_main_queue.put({"type": "shutdown"})
+                # --- ADDITIONAL SHUTDOWN CODE CAN GO HERE ---
+                pass
             else:
                 # Handle other actions (e.g., save, reset)
                 pass

@@ -72,13 +72,6 @@
             }
         },
         "Shutdown":{
-            "Restart Program":{
-                "link":"",
-                "action":"restart",
-                "default":0,
-                "options":[ 
-                ]
-            },
             "Shutdown":{
                 "link":"",
                 "action":"shutdown",
