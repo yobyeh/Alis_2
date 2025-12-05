@@ -88,23 +88,39 @@ class AnimationController(threading.Thread):
         return px, py
     
     def render_scrolling_text(self, text, width, height, color="#ffd600", font_size=32, scroll_speed=1):
-        # Render text to a long image
-        img = Image.new("RGB", (width*8 + len(text)*font_size, height*4), (0, 0, 0))
-        draw = ImageDraw.Draw(img)
+        # Render text to a long image sized for the text display
+        text_img = Image.new("RGB", (width*8 + len(text)*font_size, height*4), (0, 0, 0))
+        draw = ImageDraw.Draw(text_img)
         font = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size)
         w, h = draw.textsize(text, font=font)
-        draw.text((width*4, (img.height-h)//2), text, font=font, fill=color)
-        # Scroll window across the image
+        draw.text((width*4, (text_img.height-h)//2), text, font=font, fill=color)
+
+        # Matrix size (full LED area)
+        matrix_width = getattr(self, "width", 14)
+        matrix_height = getattr(self, "height", 50)
+
         frames = []
-        for offset in range(0, img.width-width+1, scroll_speed):
-            frame = img.crop((offset, 0, offset+width, height*4))
+        effective_speed = max(1, scroll_speed // 2) if scroll_speed > 1 else 1
+        step = 1 if scroll_speed == 1 else effective_speed
+        for offset in range(0, text_img.width-width+1, step):
+            frame = text_img.crop((offset, 0, offset+width, height*4))
             frame_small = frame.resize((width, height), Image.LANCZOS)
             arr = np.array(frame_small)
-            grb_arr = np.zeros_like(arr)
-            grb_arr[..., 0] = arr[..., 1]  # G
-            grb_arr[..., 1] = arr[..., 0]  # R
-            grb_arr[..., 2] = arr[..., 2]  # B
+            # Pad to matrix size and center
+            pad_arr = np.zeros((matrix_height, matrix_width, 3), dtype=np.uint8)
+            y_offset = max(0, (matrix_height - height) // 2)
+            x_offset = max(0, (matrix_width - width) // 2)
+            # Only copy the region that fits
+            copy_h = min(height, matrix_height)
+            copy_w = min(width, matrix_width)
+            pad_arr[y_offset:y_offset+copy_h, x_offset:x_offset+copy_w, :] = arr[:copy_h, :copy_w, :]
+            grb_arr = np.zeros_like(pad_arr)
+            grb_arr[..., 0] = pad_arr[..., 1]  # G
+            grb_arr[..., 1] = pad_arr[..., 0]  # R
+            grb_arr[..., 2] = pad_arr[..., 2]  # B
             frames.append(grb_arr)
+            if scroll_speed == 1:
+                frames.append(grb_arr)  # duplicate for half speed
         return frames
 
     def run(self):
@@ -165,7 +181,10 @@ class AnimationController(threading.Thread):
                         if msg and isinstance(msg, dict):
                             if msg.get("type") == "image":
                                 self.image_name = msg.get("name")
-                                h5_path = os.path.join(BASE_DIR, "uploaded", "images", self.image_name)
+                                if self.image_name:
+                                    h5_path = os.path.join(BASE_DIR, "uploaded", "images", self.image_name)
+                                else:
+                                    h5_path = None
                                 print("new image")
                                 with h5py.File(h5_path, "r") as h5f:
                                     matrix = np.array(h5f["frames"])
@@ -184,7 +203,10 @@ class AnimationController(threading.Thread):
                             elif msg.get("type") == "show_image":
                                 self.image_name = msg.get("name")
                                 seconds = int(msg.get("seconds", 5))
-                                h5_path = os.path.join(BASE_DIR, "uploaded", "images", self.image_name)
+                                if self.image_name:
+                                    h5_path = os.path.join(BASE_DIR, "uploaded", "images", self.image_name)
+                                else:
+                                    h5_path = None
                                 print("show image")
                                 with h5py.File(h5_path, "r") as h5f:
                                     matrix = np.array(h5f["frames"])
@@ -212,7 +234,10 @@ class AnimationController(threading.Thread):
                         if msg and isinstance(msg, dict):
                             if msg.get("type") == "animation":
                                 filename = msg.get("name")
-                                h5_path = os.path.join(BASE_DIR, "uploaded", "animations", filename)
+                                if filename:
+                                    h5_path = os.path.join(BASE_DIR, "uploaded", "animations", filename)
+                                else:
+                                    h5_path = None
                                 print("new animation")
                                 with h5py.File(h5_path, "r") as h5f:
                                     if "frames" not in h5f:
@@ -231,7 +256,10 @@ class AnimationController(threading.Thread):
                             elif msg.get("type") == "show_animation":
                                 filename = msg.get("name")
                                 loops_requested = int(msg.get("loops_requested", 1))
-                                h5_path = os.path.join(BASE_DIR, "uploaded", "animations", filename)
+                                if filename:
+                                    h5_path = os.path.join(BASE_DIR, "uploaded", "animations", filename)
+                                else:
+                                    h5_path = None
                                 print("show animation")
                                 with h5py.File(h5_path, "r") as h5f:
                                     if "frames" not in h5f:
@@ -306,6 +334,7 @@ class AnimationController(threading.Thread):
                             )
                             keep_looping = (self.text_loops == -1 or self.text_loop_counter < self.text_loops)
                             if keep_looping:
+                                print(f"Text loop {self.text_loop_counter + 1} starting for '{self.text_name}' ({self.text_width}x{self.text_height})")
                                 for frame in frames:
                                     self.get_brightness()
                                     payload = bytearray()
@@ -315,6 +344,7 @@ class AnimationController(threading.Thread):
                                             payload.extend([g, r, b])
                                     self.frame_queue.put((bytes(payload), self.brightness))
                                     time.sleep(0.05)
+                                print(f"Text loop {self.text_loop_counter + 1} finished for '{self.text_name}'")
                                 self.text_loop_counter += 1
                                 # Only set the event if we've finished all requested loops
                                 if self.text_loops != -1 and self.text_loop_counter >= self.text_loops:

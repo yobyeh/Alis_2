@@ -170,23 +170,23 @@
             
             <div style="display:flex; gap:1em;">
                 <div style="flex:1;">
-                    <label for="textWidth" style="color:#ffd600; font-weight:bold;">Width</label>
-                    <input type="number" id="textWidth" placeholder="Width" min="1" max="128" style="font-size:1.2em; border-radius:0.5em; border:none; padding:0.6em;">
+                    <label for="textWidth" style="color:#fff; font-weight:bold;">Width</label>
+                    <input type="number" id="textWidth" value="14" min="1" max="128" style="font-size:1.2em; border-radius:0.5em; border:none; padding:0.6em;">
                 </div>
                 <div style="flex:1;">
-                    <label for="textHeight" style="color:#ffd600; font-weight:bold;">Height</label>
-                    <input type="number" id="textHeight" placeholder="Height" min="1" max="128" style="font-size:1.2em; border-radius:0.5em; border:none; padding:0.6em;">
+                    <label for="textHeight" style="color:#fff; font-weight:bold;">Height</label>
+                    <input type="number" id="textHeight" value="50" min="1" max="128" style="font-size:1.2em; border-radius:0.5em; border:none; padding:0.6em;">
                 </div>
             </div>
             
             <div style="display:flex; gap:1em;">
                 <div style="flex:1;">
                     <label for="textFontSize" style="color:#ffd600; font-weight:bold;">Font Size</label>
-                    <input type="number" id="textFontSize" placeholder="42" min="8" max="128" style="font-size:1.2em; border-radius:0.5em; border:none; padding:0.6em;">
+                    <input type="number" id="textFontSize" value="42" placeholder="42" min="8" max="128" style="font-size:1.2em; border-radius:0.5em; border:none; padding:0.6em;">
                 </div>
                 <div style="flex:1;">
-                    <label for="textScrollSpeed" style="color:#ffd600; font-weight:bold;">Scroll Speed</label>
-                    <input type="number" id="textScrollSpeed" placeholder="2" min="1" max="30" style="font-size:1.2em; border-radius:0.5em; border:none; padding:0.6em;">
+                    <label for="textScrollSpeed" style="color:#ffd600; font-weight:bold;">Scroll Speed (1-30)</label>
+                    <input type="number" id="textScrollSpeed" value="4" placeholder="2" min="1" max="30" style="font-size:1.2em; border-radius:0.5em; border:none; padding:0.6em;">
                 </div>
             </div>
             
@@ -196,8 +196,7 @@
             </div>
             
             <div style="display:flex; gap:1em;">
-                <button id="testTextBtn" style="flex:1; background:#2979ff; color:#fff; font-size:1.2em; border-radius:0.5em; border:none; padding:0.7em; font-weight:bold;">Test</button>
-                <button id="saveTextBtn" style="flex:1; background:#ffd600; color:#222831; font-size:1.2em; border-radius:0.5em; border:none; padding:0.7em; font-weight:bold;">Save</button>
+                <button id="saveTextBtn" type="button" style="flex:1; background:#ffd600; color:#222831; font-size:1.2em; border-radius:0.5em; border:none; padding:0.7em; font-weight:bold; transition: background 0.1s, box-shadow 0.1s;">Save</button>
             </div>
             <div id="textEntryError" style="color:#ff1744; font-weight:bold; display:none;"></div>
         </div>
@@ -208,6 +207,14 @@
         </div>
     </div>
     <script>
+                // Enforce scroll speed bounds and whole number after entry
+                const scrollSpeedInput = document.getElementById("textScrollSpeed");
+                scrollSpeedInput.addEventListener("change", function() {
+                    let val = Math.round(Number(scrollSpeedInput.value));
+                    if (isNaN(val) || val < 1) val = 1;
+                    if (val > 30) val = 30;
+                    scrollSpeedInput.value = val;
+                });
         // Button toggle logic
         const staticBtn = document.getElementById("staticBtn");
         const animationBtn = document.getElementById("animationBtn");
@@ -370,19 +377,6 @@
                         `Font: ${txt["font size"] || "42"} | ` +
                         `Scroll: ${txt["scroll speed"] || "2"}`;
                     item.appendChild(info);
-                    // Run on click (not on delete)
-                    item.onclick = async (e) => {
-                        if (e.target !== item) return; // Only if not clicking delete
-                        item.style.background = "#2979ff";
-                        item.style.color = "#fff";
-                        await fetch("/api/run_text", {
-                            method: "POST",
-                            headers: {"Content-Type": "application/json"},
-                            body: JSON.stringify({name: txt.name})
-                        });
-                        item.style.background = "";
-                        item.style.color = "";
-                    };
                     // Delete button
                     const delBtn = document.createElement("button");
                     delBtn.textContent = "Delete";
@@ -409,6 +403,19 @@
                         }
                     };
                     item.appendChild(delBtn);
+                    // Make the whole item clickable except the delete button
+                    item.onclick = async (e) => {
+                        if (e.target === delBtn) return; // Don't run if clicking delete
+                        item.style.background = "#2979ff";
+                        item.style.color = "#fff";
+                        await fetch("/api/run_text", {
+                            method: "POST",
+                            headers: {"Content-Type": "application/json"},
+                            body: JSON.stringify({name: txt.name})
+                        });
+                        item.style.background = "";
+                        item.style.color = "";
+                    };
                     textImageList.appendChild(item);
                 });
         }
@@ -502,8 +509,17 @@
             err.style.display = msg ? "block" : "none";
         }
 
-        document.getElementById("testTextBtn").onclick = testTextEntry;
-        document.getElementById("saveTextBtn").onclick = saveTextEntry;
+        // Add click animation to Save button
+        const saveTextBtn = document.getElementById("saveTextBtn");
+        saveTextBtn.onclick = async function() {
+            saveTextBtn.style.background = "#ffe066";
+            saveTextBtn.style.boxShadow = "0 0 0 2px #ffd600";
+            await saveTextEntry();
+            setTimeout(() => {
+                saveTextBtn.style.background = "#ffd600";
+                saveTextBtn.style.boxShadow = "none";
+            }, 150);
+        };
 
         // Initial load
         loadImages();

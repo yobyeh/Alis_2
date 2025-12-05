@@ -185,17 +185,17 @@
             <div class="field" style="display:flex; gap:1em;">
                 <div style="flex:1;">
                     <label for="showWidth">Width</label>
-                    <input type="number" id="showWidth" min="1" max="128" required>
+                    <input type="number" id="showWidth" min="1" max="128" required value="14" disabled style="background:#e0e0e0; color:#888;">
                 </div>
                 <div style="flex:1;">
                     <label for="showHeight">Height</label>
-                    <input type="number" id="showHeight" min="1" max="128" required>
+                    <input type="number" id="showHeight" min="1" max="128" required value="50" disabled style="background:#e0e0e0; color:#888;">
                 </div>
             </div>
             <div class="field">
                 <label for="showShape">Shape</label>
-                <select id="showShape">
-                    <option value="square">Square</option>
+                <select id="showShape" disabled style="background:#e0e0e0; color:#888;">
+                    <option value="square" selected>Square</option>
                     <option value="triangle">Triangle</option>
                 </select>
             </div>
@@ -316,6 +316,16 @@
             if (entryType === "static") options = staticOptions;
             if (entryType === "animation") options = animationOptions;
             if (entryType === "text") options = textOptions;
+
+            // Add label above select dropdown
+            const label = document.createElement("label");
+            label.htmlFor = "entrySelect";
+            label.textContent = "Select File";
+            label.style.color = "#ffd600";
+            label.style.fontWeight = "bold";
+            label.style.display = "block";
+            label.style.marginBottom = "0.3em";
+            entryOptions.appendChild(label);
 
             // Build select dropdown
             const select = document.createElement("select");
