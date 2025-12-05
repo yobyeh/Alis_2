@@ -335,9 +335,12 @@ class AnimationController(threading.Thread):
                                 self.text_name, self.text_width, self.text_height, self.text_color, self.font_size, self.scroll_speed
                             )
                             keep_looping = (self.text_loops == -1 or self.text_loop_counter < self.text_loops)
+                            target_fps = 20
+                            frame_delay = 1.0 / target_fps
                             if keep_looping:
                                 print(f"Text loop {self.text_loop_counter + 1} starting for '{self.text_name}' ({self.text_width}x{self.text_height})")
                                 for frame in frames:
+                                    start_time = time.time()
                                     self.get_brightness()
                                     payload = bytearray()
                                     for x in range(self.width):
@@ -345,7 +348,9 @@ class AnimationController(threading.Thread):
                                             g, r, b = frame[y, x]
                                             payload.extend([g, r, b])
                                     self.frame_queue.put((bytes(payload), self.brightness))
-                                    time.sleep(0.05)
+                                    elapsed = time.time() - start_time
+                                    sleep_time = max(0, frame_delay - elapsed)
+                                    time.sleep(sleep_time)
                                 print(f"Text loop {self.text_loop_counter + 1} finished for '{self.text_name}'")
                                 self.text_loop_counter += 1
                                 # Only set the event if we've finished all requested loops
