@@ -294,8 +294,33 @@ async def run_show(data: dict = Body(...)):
 
 @app.post("/api/update_setting")
 async def update_setting(request: Request):
-    
-    return {"status": "ok"}
+    import json
+    data = await request.json()
+    setting = data.get("setting")
+    value = data.get("value")
+    # Only handle LED Brightness
+    if setting == "LED Brightness":
+        # Acquire lock and update settings
+        # Assume app.state.settings_lock and app.state.current_settings exist
+        lock = getattr(app.state, "settings_lock", None)
+        current_settings = getattr(app.state, "current_settings", None)
+        if lock and current_settings is not None:
+            with lock:
+                current_settings[setting] = value
+                # Also update settings.json file
+                settings_path = os.path.join(BASE_DIR, "data", "settings.json")
+                try:
+                    with open(settings_path, "r") as f:
+                        settings_data = json.load(f)
+                except Exception:
+                    settings_data = {}
+                settings_data[setting] = value
+                with open(settings_path, "w") as f:
+                    json.dump(settings_data, f, indent=2)
+            return {"status": "ok", "updated": True}
+        else:
+            return {"status": "error", "reason": "settings_lock or current_settings not available"}
+    return {"status": "ok", "updated": False}
 
 @app.get("/api/settings_options")
 async def settings_options():
