@@ -52,29 +52,26 @@
         <!-- Settings will be rendered here -->
     </div>
     <script>
-async function fetchMenuData() {
-    const res = await fetch("/api/settings_options");
-    return res.json();
+async function fetchSettingsAndOptions() {
+    // Get options and current settings
+    const optionsRes = await fetch("/api/settings_options");
+    const optionsData = await optionsRes.json();
+    // Try to get current settings from backend (if available)
+    let current = {};
+    try {
+        const currentRes = await fetch("/api/current_settings");
+        if (currentRes.ok) current = await currentRes.json();
+    } catch {}
+    return { settings: optionsData, current };
 }
 
 async function renderSettings() {
-    const { settings, current } = await fetchMenuData();
+    const { settings, current } = await fetchSettingsAndOptions();
     const settingsList = document.getElementById("settings-list");
     settingsList.innerHTML = `<h2 style=\"color:#fff; margin-bottom:1em;\">Settings</h2>`;
 
     settings.forEach(({name, options, default: defaultValue, action}) => {
-        if (name === "Animation Mode") {
-            const div = document.createElement("div");
-            div.style.marginBottom = "1.5em";
-            div.innerHTML = `<label style=\"color:#fff; font-weight:bold; margin-right:1em;\">${name}</label>`;
-            const span = document.createElement("span");
-            span.style.fontSize = "1.1em";
-            span.style.marginLeft = "0.7em";
-            span.style.color = "#ffd600";
-            span.textContent = current && current[name] !== undefined ? current[name] : defaultValue;
-            div.appendChild(span);
-            settingsList.appendChild(div);
-        } else if (Array.isArray(options) && options.length > 0) {
+        if (Array.isArray(options) && options.length > 0) {
             const div = document.createElement("div");
             div.style.marginBottom = "1.5em";
             div.innerHTML = `<label style=\"color:#fff; font-weight:bold; margin-right:1em;\">${name}</label>`;
@@ -85,19 +82,28 @@ async function renderSettings() {
             select.style.marginLeft = "0.5em";
             select.style.background = "#fff";
             select.style.color = "#222831";
+            const selectedValue = current && current[name] !== undefined ? current[name] : defaultValue;
             options.forEach(opt => {
                 const option = document.createElement("option");
                 option.value = opt;
                 option.textContent = opt;
-                if (opt == (current && current[name] !== undefined ? current[name] : defaultValue)) option.selected = true;
+                if (opt == selectedValue) option.selected = true;
                 select.appendChild(option);
             });
+            // Only enable Sleep Timer and LED Brightness
+            if (name !== "Sleep Timer" && name !== "LED Brightness") {
+                select.disabled = true;
+                select.style.opacity = "0.5";
+                select.style.pointerEvents = "none";
+            }
             select.onchange = async () => {
-                await fetch("/api/update_setting", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({setting: name, value: select.value})
-                });
+                if (!select.disabled) {
+                    await fetch("/api/update_setting", {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({setting: name, value: select.value})
+                    });
+                }
             };
             div.appendChild(select);
             settingsList.appendChild(div);

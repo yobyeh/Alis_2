@@ -238,7 +238,7 @@
                 actions.className = "show-actions";
                 const editBtn = document.createElement("button");
                 editBtn.className = "edit-btn";
-                editBtn.textContent = "Edit";
+                editBtn.textContent = "Copy";
                 editBtn.onclick = () => loadShowForEdit(idx);
                 const delBtn = document.createElement("button");
                 delBtn.className = "delete-btn";
@@ -354,8 +354,7 @@
                 `;
             } else if (entryType === "text") {
                 entryOptions.innerHTML += `
-                    <div class="field"><label for="entryFps">FPS</label>
-                    <input type="number" id="entryFps" min="1" max="60" value="10"></div>
+                    <!-- No FPS for text, only scroll speed is used -->
                     <div class="field"><label for="entryLoop">Loop Count</label>
                     <input type="number" id="entryLoop" min="1" max="99" value="1"></div>
                 `;
@@ -375,6 +374,11 @@
 
         function addEntry(options) {
             const select = document.getElementById("entrySelect");
+            const addBtn = document.querySelector("#entryOptions .save-btn");
+            if (addBtn) {
+                addBtn.style.background = "#ffe066";
+                addBtn.style.boxShadow = "0 0 0 2px #ffd600";
+            }
             if (!select || !select.value) return;
             const opt = options.find(o => o.name === select.value);
             if (!opt) return;
@@ -385,11 +389,17 @@
             } else if (entryType === "static") {
                 entry.seconds = parseInt(document.getElementById("entrySeconds").value) || 5;
             } else if (entryType === "text") {
-                entry.fps = parseInt(document.getElementById("entryFps").value) || 10;
+                // No FPS for text, only scroll speed is used
                 entry.loop_count = parseInt(document.getElementById("entryLoop").value) || 1;
             }
             showEntries.push(entry);
             renderEntryList();
+            if (addBtn) {
+                setTimeout(() => {
+                    addBtn.style.background = "#2979ff";
+                    addBtn.style.boxShadow = "none";
+                }, 150);
+            }
         }
 
         function renderEntryList() {
@@ -404,7 +414,10 @@
                 } else if (entry.type === "static") {
                     div.innerHTML += `<span>Seconds: ${entry.seconds}</span>`;
                 } else if (entry.type === "text") {
-                    div.innerHTML += `<span>FPS: ${entry.fps}</span>`;
+                    // No FPS for text
+                    if (entry.loop_count !== undefined) {
+                        div.innerHTML += `<span>Loops: ${entry.loop_count}</span>`;
+                    }
                 }
                 // Button container
                 const btnGroup = document.createElement("span");
@@ -414,11 +427,23 @@
                 const upBtn = document.createElement("button");
                 upBtn.className = "move-btn";
                 upBtn.textContent = "↑";
-                upBtn.onclick = () => moveEntry(idx, -1);
+                if (idx === 0) {
+                    upBtn.disabled = true;
+                    upBtn.style.opacity = "0.5";
+                    upBtn.style.cursor = "not-allowed";
+                } else {
+                    upBtn.onclick = () => moveEntry(idx, -1);
+                }
                 const downBtn = document.createElement("button");
                 downBtn.className = "move-btn";
                 downBtn.textContent = "↓";
-                downBtn.onclick = () => moveEntry(idx, 1);
+                if (idx === showEntries.length - 1) {
+                    downBtn.disabled = true;
+                    downBtn.style.opacity = "0.5";
+                    downBtn.style.cursor = "not-allowed";
+                } else {
+                    downBtn.onclick = () => moveEntry(idx, 1);
+                }
                 // Delete button
                 const delBtn = document.createElement("button");
                 delBtn.className = "delete-btn";
@@ -443,17 +468,28 @@
 
         // Save show
         document.getElementById("saveBtn").onclick = async () => {
+            const saveBtn = document.getElementById("saveBtn");
+            saveBtn.style.background = "#ffe066";
+            saveBtn.style.boxShadow = "0 0 0 2px #ffd600";
             const name = document.getElementById("showName").value.trim();
             const width = parseInt(document.getElementById("showWidth").value);
             const height = parseInt(document.getElementById("showHeight").value);
             const shape = document.getElementById("showShape").value;
             if (!name || !width || !height || showEntries.length === 0) {
                 showError("Please fill all fields and add at least one entry.");
+                setTimeout(() => {
+                    saveBtn.style.background = "";
+                    saveBtn.style.boxShadow = "none";
+                }, 150);
                 return;
             }
             // Check for duplicate name
             if (shows.some((s, idx) => s.name === name && idx !== editingIndex)) {
                 showError("A show with this name already exists.");
+                setTimeout(() => {
+                    saveBtn.style.background = "";
+                    saveBtn.style.boxShadow = "none";
+                }, 150);
                 return;
             }
             const newShow = { name, width, height, shape, entries: showEntries.map(e => ({...e})) };
@@ -466,8 +502,12 @@
                 loadShows();
                 resetForm();
             } else {
-                showError("Failed to save show.");
+                showError("Failed to save show. Check if show name is repeated");
             }
+            setTimeout(() => {
+                saveBtn.style.background = "";
+                saveBtn.style.boxShadow = "none";
+            }, 150);
         };
 
         function showError(msg) {
