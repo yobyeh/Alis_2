@@ -308,6 +308,8 @@ class AnimationController(threading.Thread):
                             self.text_name = msg.get("name", "")
                             self.text_loops = int(msg.get("loops_requested", -1))  # -1 for infinite loops if not provided
                             self.text_loop_counter = 0
+                            self.text_frame_index = 0
+                            self.text_frames = None
 
                             # Load parameters from text_display.json
                             text_params = None
@@ -329,35 +331,34 @@ class AnimationController(threading.Thread):
                                 print("No matching text entry found or no text to display")
                                 self.text_name = None
 
-                        # Only render if we have text to display
-                        if self.text_name:
-                            frames = self.render_scrolling_text(
-                                self.text_name, self.text_width, self.text_height, self.text_color, self.font_size, self.scroll_speed
-                            )
+                            # Precompute frames for this text
+                            if self.text_name:
+                                self.text_frames = self.render_scrolling_text(
+                                    self.text_name, self.text_width, self.text_height, self.text_color, self.font_size, self.scroll_speed
+                                )
+
+                        # Only render if we have text to display and frames are available
+                        if self.text_name and hasattr(self, "text_frames") and self.text_frames:
                             keep_looping = (self.text_loops == -1 or self.text_loop_counter < self.text_loops)
-                            target_fps = 20
-                            frame_delay = 1.0 / target_fps
                             if keep_looping:
-                                print(f"Text loop {self.text_loop_counter + 1} starting for '{self.text_name}' ({self.text_width}x{self.text_height})")
-                                for frame in frames:
-                                    start_time = time.time()
-                                    self.get_brightness()
-                                    payload = bytearray()
-                                    for x in range(self.width):
-                                        for y in range(self.height):
-                                            g, r, b = frame[y, x]
-                                            payload.extend([g, r, b])
-                                    self.frame_queue.put((bytes(payload), self.brightness))
-                                    elapsed = time.time() - start_time
-                                    sleep_time = max(0, frame_delay - elapsed)
-                                    time.sleep(sleep_time)
-                                print(f"Text loop {self.text_loop_counter + 1} finished for '{self.text_name}'")
-                                self.text_loop_counter += 1
-                                # Only set the event if we've finished all requested loops
-                                if self.text_loops != -1 and self.text_loop_counter >= self.text_loops:
-                                    print("Requested text loops completed, not looping further.")
-                                    if self.show_entry_complete_event:
-                                        self.show_entry_complete_event.set()
+                                frame = self.text_frames[self.text_frame_index]
+                                self.get_brightness()
+                                payload = bytearray()
+                                for x in range(self.width):
+                                    for y in range(self.height):
+                                        g, r, b = frame[y, x]
+                                        payload.extend([g, r, b])
+                                self.frame_queue.put((bytes(payload), self.brightness))
+                                self.text_frame_index += 1
+                                if self.text_frame_index >= len(self.text_frames):
+                                    self.text_frame_index = 0
+                                    self.text_loop_counter += 1
+                                    print(f"Text loop {self.text_loop_counter} finished for '{self.text_name}'")
+                                    # Only set the event if we've finished all requested loops
+                                    if self.text_loops != -1 and self.text_loop_counter >= self.text_loops:
+                                        print("Requested text loops completed, not looping further.")
+                                        if self.show_entry_complete_event:
+                                            self.show_entry_complete_event.set()
                         else:
                             print("No matching text entry found or no text to display")
                     case _:
