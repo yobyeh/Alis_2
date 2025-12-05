@@ -91,7 +91,8 @@ class AnimationController(threading.Thread):
         # Render text to a long image sized for the text display
         text_img = Image.new("RGB", (width*8 + len(text)*font_size, height*4), (0, 0, 0))
         draw = ImageDraw.Draw(text_img)
-        font = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size)
+        font_path = os.path.join(BASE_DIR, "assets", "DejaVuSans-Bold.ttf")
+        font = ImageFont.truetype(font_path, font_size)
         w, h = draw.textsize(text, font=font)
         draw.text((width*4, (text_img.height-h)//2), text, font=font, fill=color)
 
