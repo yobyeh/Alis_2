@@ -220,7 +220,7 @@
 
         // Fetch all shows
         async function loadShows() {
-            const res = await fetch("/api/shows_list");
+            const res = await fetch("/api/shows_list_all");
             if (!res.ok) return;
             const data = await res.json();
             shows = data.shows || [];

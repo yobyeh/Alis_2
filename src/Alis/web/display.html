@@ -309,7 +309,34 @@
                     name.textContent = `${img.name.replace(/\.h5$/, "")} (${img.width}x${img.height})`;
                     item.appendChild(preview);
                     item.appendChild(name);
+                    // Delete button
+                    const delBtn = document.createElement("button");
+                    delBtn.textContent = "Delete";
+                    delBtn.style.marginLeft = "1em";
+                    delBtn.style.background = "#ff1744";
+                    delBtn.style.color = "#fff";
+                    delBtn.style.border = "none";
+                    delBtn.style.borderRadius = "0.4em";
+                    delBtn.style.padding = "0.3em 1em";
+                    delBtn.style.fontWeight = "bold";
+                    delBtn.style.cursor = "pointer";
+                    delBtn.onclick = async (e) => {
+                        e.stopPropagation();
+                        if (!confirm(`Delete static image '${img.name}'?`)) return;
+                        const res = await fetch("/api/delete_entry", {
+                            method: "POST",
+                            headers: {"Content-Type": "application/json"},
+                            body: JSON.stringify({name: img.name, type: "static"})
+                        });
+                        if (res.ok) {
+                            loadImages();
+                        } else {
+                            alert("Failed to delete image.");
+                        }
+                    };
+                    item.appendChild(delBtn);
                     item.onclick = async () => {
+                        if (event.target === delBtn) return;
                         item.style.background = "#2979ff";
                         item.style.color = "#fff";
                         await fetch("/api/run_image", {
@@ -342,7 +369,34 @@
                     name.textContent = `${anim.name.replace(/\.h5$/, "")} (${anim.width}x${anim.height})`;
                     item.appendChild(preview);
                     item.appendChild(name);
+                    // Delete button
+                    const delBtn = document.createElement("button");
+                    delBtn.textContent = "Delete";
+                    delBtn.style.marginLeft = "1em";
+                    delBtn.style.background = "#ff1744";
+                    delBtn.style.color = "#fff";
+                    delBtn.style.border = "none";
+                    delBtn.style.borderRadius = "0.4em";
+                    delBtn.style.padding = "0.3em 1em";
+                    delBtn.style.fontWeight = "bold";
+                    delBtn.style.cursor = "pointer";
+                    delBtn.onclick = async (e) => {
+                        e.stopPropagation();
+                        if (!confirm(`Delete animation '${anim.name}'?`)) return;
+                        const res = await fetch("/api/delete_entry", {
+                            method: "POST",
+                            headers: {"Content-Type": "application/json"},
+                            body: JSON.stringify({name: anim.name, type: "animation"})
+                        });
+                        if (res.ok) {
+                            loadAnimations();
+                        } else {
+                            alert("Failed to delete animation.");
+                        }
+                    };
+                    item.appendChild(delBtn);
                     item.onclick = async () => {
+                        if (event.target === delBtn) return;
                         item.style.background = "#2979ff";
                         item.style.color = "#fff";
                         await fetch("/api/run_animation", {

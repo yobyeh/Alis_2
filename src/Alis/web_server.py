@@ -1,6 +1,4 @@
-#hardcoding 14x50 for testing , needs to get from passed settings or something
-#may not need to send color change msg any more 
-from fastapi import FastAPI, WebSocket, UploadFile, File, Request
+from fastapi import FastAPI, WebSocket, UploadFile, File, Request, Body
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi import Body
@@ -11,6 +9,7 @@ from pathlib import Path
 from matrix_convert import run_matrix_convert
 import h5py
 import os
+from fastapi import status
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -50,6 +49,35 @@ async def image_list():
             "width": width
         })
     return JSONResponse(items)
+
+# --- DELETE ENTRY ENDPOINT ---
+@app.post("/api/delete_entry")
+async def delete_entry(data: dict = Body(...)):
+    """
+    Delete a static image or animation entry by name and type.
+    data: {"name": <str>, "type": "static"|"animation"}
+    """
+    entry_type = data.get("type")
+    name = data.get("name")
+    if not entry_type or not name:
+        return JSONResponse({"error": "Missing type or name"}, status_code=status.HTTP_400_BAD_REQUEST)
+    if entry_type == "static":
+        h5_path = os.path.join(BASE_DIR, "uploaded", "images", name)
+        preview_path = os.path.join(BASE_DIR, "uploaded", "images", "preview", os.path.splitext(name)[0] + ".png")
+    elif entry_type == "animation":
+        h5_path = os.path.join(BASE_DIR, "uploaded", "animations", name)
+        preview_path = os.path.join(BASE_DIR, "uploaded", "animations", "preview", os.path.splitext(name)[0] + ".png")
+    else:
+        return JSONResponse({"error": "Invalid type"}, status_code=status.HTTP_400_BAD_REQUEST)
+    # Remove files if they exist
+    try:
+        if os.path.exists(h5_path):
+            os.remove(h5_path)
+        if os.path.exists(preview_path):
+            os.remove(preview_path)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return {"status": "deleted"}
 
 @app.get("/api/animation_list")
 async def animation_list():
@@ -179,6 +207,7 @@ async def test_text(data: dict = Body(...)):
     web_animation_queue.put({"type": "text_test", **data})
     return {"status": "ok", "data": data}
 
+
 @app.get("/api/shows_list")
 async def shows_list():
     import json
@@ -188,7 +217,24 @@ async def shows_list():
         return JSONResponse({"shows": []})
     with open(shows_path, "r") as f:
         shows_data = json.load(f)
-    return JSONResponse(shows_data)
+    filtered_shows = []
+    for show in shows_data.get("shows", []):
+        all_files_exist = True
+        for entry in show.get("entries", []):
+            if entry["type"] == "animation":
+                anim_path = os.path.join(BASE_DIR, "uploaded", "animations", entry["name"])
+                if not os.path.exists(anim_path):
+                    all_files_exist = False
+                    break
+            elif entry["type"] == "image":
+                img_path = os.path.join(BASE_DIR, "uploaded", "images", entry["name"])
+                if not os.path.exists(img_path):
+                    all_files_exist = False
+                    break
+            # text entries do not reference files
+        if all_files_exist:
+            filtered_shows.append(show)
+    return JSONResponse({"shows": filtered_shows})
 
 @app.post("/api/run_show_entry")
 async def run_show_entry(data: dict = Body(...)):
@@ -339,6 +385,19 @@ async def settings_options():
             "action": info.get("action", ""),
         })
     return JSONResponse(settings_list)
+
+# Place this after app = FastAPI() and all mounts
+
+@app.get("/api/shows_list_all")
+async def shows_list_all():
+    import json
+    shows_path = os.path.join(BASE_DIR, "data", "shows.json")
+    shows_path = Path("data/shows.json")
+    if not shows_path.exists():
+        return JSONResponse({"shows": []})
+    with open(shows_path, "r") as f:
+        shows_data = json.load(f)
+    return JSONResponse(shows_data)
 
 if __name__ == "__main__":
     uvicorn.run("web_server:app", host="0.0.0.0", port=8000, reload=True)
